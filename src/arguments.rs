@@ -92,7 +92,7 @@ impl Arguments {
                   continue;
                 }
 
-                if self.interactive && !self.quiet {
+                if self.interactive {
                   let prompt = format!(
                     "Remove {} ({}) in {}?",
                     style.apply(CYAN, path.display()),
