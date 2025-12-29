@@ -3,18 +3,6 @@ use super::*;
 pub(crate) struct Node;
 
 impl Rule for Node {
-  fn id(&self) -> &'static str {
-    "node"
-  }
-
-  fn name(&self) -> &'static str {
-    "Node"
-  }
-
-  fn applies(&self, context: &Context) -> bool {
-    context.files.contains(&PathBuf::from("package.json"))
-  }
-
   fn actions(&self) -> &[Action] {
     &[
       Action::Remove {
@@ -26,5 +14,17 @@ impl Rule for Node {
         reason: "Angular cache",
       },
     ]
+  }
+
+  fn applies(&self, context: &Context) -> bool {
+    context.files.contains(&PathBuf::from("package.json"))
+  }
+
+  fn id(&self) -> &'static str {
+    "node"
+  }
+
+  fn name(&self) -> &'static str {
+    "Node"
   }
 }

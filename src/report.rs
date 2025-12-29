@@ -85,7 +85,7 @@ impl TryFrom<(&Context, &dyn Rule)> for Report {
 
       total_bytes += bytes;
 
-      items.push((bytes, relative_path))
+      items.push((bytes, relative_path));
     }
 
     items.sort_by(|left, right| left.1.cmp(&right.1));

@@ -13,14 +13,14 @@ pub(crate) struct Style {
 
 impl Style {
   pub(crate) fn apply<T: Display>(
-    &self,
+    self,
     code: &'static str,
     value: T,
   ) -> Styled<T> {
     Styled {
       code,
-      value,
       enabled: self.enabled,
+      value,
     }
   }
 
@@ -53,8 +53,8 @@ impl Style {
 
 pub(crate) struct Styled<T> {
   code: &'static str,
-  value: T,
   enabled: bool,
+  value: T,
 }
 
 impl<T: Display> Display for Styled<T> {

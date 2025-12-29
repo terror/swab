@@ -3,18 +3,6 @@ use super::*;
 pub(crate) struct Zig;
 
 impl Rule for Zig {
-  fn id(&self) -> &'static str {
-    "zig"
-  }
-
-  fn name(&self) -> &'static str {
-    "Zig"
-  }
-
-  fn applies(&self, context: &Context) -> bool {
-    context.files.contains(&PathBuf::from("build.zig"))
-  }
-
   fn actions(&self) -> &[Action] {
     &[
       Action::Remove {
@@ -30,5 +18,17 @@ impl Rule for Zig {
         reason: "Zig build output",
       },
     ]
+  }
+
+  fn applies(&self, context: &Context) -> bool {
+    context.files.contains(&PathBuf::from("build.zig"))
+  }
+
+  fn id(&self) -> &'static str {
+    "zig"
+  }
+
+  fn name(&self) -> &'static str {
+    "Zig"
   }
 }
