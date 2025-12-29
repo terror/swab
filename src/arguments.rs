@@ -1,6 +1,6 @@
 use super::*;
 
-static RULES: &[&dyn Rule] = &[&Rust];
+static RULES: &[&dyn Rule] = &[&Cargo];
 
 #[derive(Debug, Parser)]
 pub(crate) struct Arguments {
@@ -11,6 +11,8 @@ pub(crate) struct Arguments {
 
 impl Arguments {
   pub(crate) fn run(self) -> Result {
+    let mut reports = Vec::new();
+
     for directory in self.directories {
       ensure!(
         directory.is_dir(),
@@ -25,40 +27,17 @@ impl Arguments {
           continue;
         }
 
-        for action in rule.actions() {
-          let matcher = Glob::new(action.pattern)?.compile_matcher();
+        let report = Report::try_from((&context, *rule))?;
 
-          let mut matches: Vec<PathBuf> = context
-            .directories
-            .iter()
-            .filter(|path| matcher.is_match(path))
-            .cloned()
-            .collect();
+        if report.items.is_empty() {
+          continue;
+        }
 
-          matches.extend(
-            context
-              .files
-              .iter()
-              .filter(|path| matcher.is_match(path))
-              .cloned(),
-          );
-
-          for relative_path in matches {
-            let full_path = context.root.join(&relative_path);
+        if !self.dry_run {
+          for item in &report.items {
+            let full_path = context.root.join(&item.1);
 
             if !full_path.exists() {
-              continue;
-            }
-
-            if self.dry_run {
-              println!(
-                "dry-run: [{}:{}] remove '{}' ({})",
-                rule.id(),
-                rule.name(),
-                full_path.display(),
-                action.reason
-              );
-
               continue;
             }
 
@@ -67,17 +46,31 @@ impl Arguments {
             } else {
               fs::remove_file(&full_path)?;
             }
-
-            println!(
-              "removed: [{}:{}] '{}' ({})",
-              rule.id(),
-              rule.name(),
-              full_path.display(),
-              action.reason
-            );
           }
         }
+
+        reports.push(report);
       }
+    }
+
+    for report in &reports {
+      print!("{report}");
+    }
+
+    let total_bytes = reports.iter().map(|report| report.bytes).sum();
+
+    let total_projects = reports.len();
+
+    if self.dry_run {
+      println!(
+        "Projects matched: {total_projects}, Bytes matched: {}",
+        Bytes(total_bytes)
+      );
+    } else {
+      println!(
+        "Projects cleaned: {total_projects}, Bytes deleted: {}",
+        Bytes(total_bytes)
+      );
     }
 
     Ok(())

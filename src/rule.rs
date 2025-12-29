@@ -1,11 +1,12 @@
 use super::*;
 
-pub(crate) use rust::Rust;
+pub(crate) use cargo::Cargo;
 
-mod rust;
+mod cargo;
 
 pub(crate) trait Rule: Sync {
   /// A unique identifier for the rule.
+  #[allow(unused)]
   fn id(&self) -> &'static str;
 
   /// A human-readable name for the rule.

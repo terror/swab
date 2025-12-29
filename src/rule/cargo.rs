@@ -1,14 +1,14 @@
 use super::*;
 
-pub(crate) struct Rust;
+pub(crate) struct Cargo;
 
-impl Rule for Rust {
+impl Rule for Cargo {
   fn id(&self) -> &'static str {
-    "rust"
+    "cargo"
   }
 
   fn name(&self) -> &'static str {
-    "Rust"
+    "Cargo"
   }
 
   fn applies(&self, context: &Context) -> bool {
@@ -18,7 +18,7 @@ impl Rule for Rust {
   fn actions(&self) -> &[Action] {
     &[Action {
       pattern: "target",
-      reason: "Rust build artifacts",
+      reason: "Cargo build artifacts",
     }]
   }
 }
