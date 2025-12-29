@@ -116,7 +116,7 @@ impl Arguments {
                 project_bytes += *size;
                 seen_removals.insert(path.clone());
               } else {
-                if self.interactive && !self.quiet {
+                if self.interactive {
                   let Task::Command(command) = task else {
                     continue;
                   };
