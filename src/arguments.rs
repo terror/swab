@@ -33,6 +33,8 @@ impl Arguments {
   }
 
   pub(crate) fn run(self) -> Result {
+    let style = Style::stdout();
+
     let mut reports = Vec::new();
 
     for root in self.directories {
@@ -91,13 +93,19 @@ impl Arguments {
 
     if self.dry_run {
       println!(
-        "Projects matched: {total_projects}, Bytes matched: {}",
-        Bytes(total_bytes)
+        "{}: {}, {}: {}",
+        style.apply(BOLD, "Projects matched"),
+        style.apply(CYAN, total_projects),
+        style.apply(BOLD, "Bytes matched"),
+        style.apply(GREEN, Bytes(total_bytes)),
       );
     } else {
       println!(
-        "Projects cleaned: {total_projects}, Bytes deleted: {}",
-        Bytes(total_bytes)
+        "{}: {}, {}: {}",
+        style.apply(BOLD, "Projects cleaned"),
+        style.apply(CYAN, total_projects),
+        style.apply(BOLD, "Bytes deleted"),
+        style.apply(GREEN, Bytes(total_bytes)),
       );
     }
 

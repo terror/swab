@@ -12,13 +12,16 @@ pub(crate) struct Report {
 
 impl Display for Report {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    let style = Style::stdout();
+
     let age = self.modified.format();
 
     writeln!(
       f,
-      "{} {} project ({age})",
-      self.root.display(),
-      self.rule_name
+      "{} {} project ({})",
+      style.apply(CYAN, self.root.display()),
+      style.apply(BOLD, self.rule_name.as_str()),
+      style.apply(DIM, age),
     )?;
 
     let total_entries = self.items.len() + self.commands.len();
@@ -30,7 +33,13 @@ impl Display for Report {
         "├─"
       };
 
-      writeln!(f, "  {branch} {} ({})", item.1.display(), Bytes(item.0))?;
+      writeln!(
+        f,
+        "  {} {} {}",
+        style.apply(DIM, branch),
+        item.1.display(),
+        style.apply(GREEN, format_args!("({})", Bytes(item.0))),
+      )?;
     }
 
     for (index, command) in self.commands.iter().enumerate() {
@@ -41,7 +50,13 @@ impl Display for Report {
         "├─"
       };
 
-      writeln!(f, "  {branch} run {command}")?;
+      writeln!(
+        f,
+        "  {} {} {}",
+        style.apply(DIM, branch),
+        style.apply(DIM, "run"),
+        style.apply(YELLOW, command),
+      )?;
     }
 
     Ok(())

@@ -12,12 +12,15 @@ use {
   std::{
     backtrace::BacktraceStatus,
     collections::HashSet,
+    env,
     fmt::{self, Display, Formatter},
     fs,
+    io::{self, IsTerminal},
     path::{Path, PathBuf},
     process::{self, Command},
     time::{Duration, SystemTime},
   },
+  style::{BOLD, CYAN, DIM, GREEN, Style, YELLOW},
   system_time_ext::SystemTimeExt,
   walkdir::WalkDir,
 };
@@ -29,6 +32,7 @@ mod context;
 mod path_ext;
 mod report;
 mod rule;
+mod style;
 mod system_time_ext;
 
 type Result<T = (), E = Error> = std::result::Result<T, E>;
