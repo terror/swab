@@ -1,14 +1,14 @@
 use super::*;
 
-#[derive(Debug)]
-pub(crate) enum Detection<'a> {
-  All(Box<Detection<'a>>, Box<Detection<'a>>),
-  Any(Box<Detection<'a>>, Box<Detection<'a>>),
-  Not(Box<Detection<'a>>),
-  Pattern(&'a str),
+#[derive(Clone, Debug)]
+pub(crate) enum Detection {
+  All(Box<Detection>, Box<Detection>),
+  Any(Box<Detection>, Box<Detection>),
+  Not(Box<Detection>),
+  Pattern(&'static str),
 }
 
-impl Detection<'_> {
+impl Detection {
   pub(crate) fn matches(&self, context: &Context) -> bool {
     match self {
       Detection::All(left, right) => {

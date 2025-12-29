@@ -19,15 +19,15 @@ macro_rules! define_rule {
         &[$($action),*]
       }
 
-      fn detection(&self) -> $crate::detection::Detection<'static> {
+      fn detection(&self) -> $crate::detection::Detection {
         $detection
       }
 
-      fn id(&self) -> &'static str {
+      fn id(&self) -> &str {
         $id
       }
 
-      fn name(&self) -> &'static str {
+      fn name(&self) -> &str {
         $rule_name
       }
     }
@@ -68,12 +68,12 @@ pub(crate) trait Rule: Sync {
   fn actions(&self) -> &[Action];
 
   /// Builds a detection used to evaluate a context.
-  fn detection(&self) -> Detection<'static>;
+  fn detection(&self) -> Detection;
 
   /// A unique identifier for the rule.
   #[allow(unused)]
-  fn id(&self) -> &'static str;
+  fn id(&self) -> &str;
 
   /// A human-readable name for the rule.
-  fn name(&self) -> &'static str;
+  fn name(&self) -> &str;
 }

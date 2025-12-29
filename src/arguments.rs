@@ -1,11 +1,5 @@
 use super::*;
 
-static RULES: &[&dyn Rule] = &[
-  &Cabal, &Cargo, &Cmake, &Composer, &Dotnet, &Elixir, &Godot, &Gradle,
-  &Jupyter, &Maven, &Node, &Pixi, &Pub, &Python, &Sbt, &Stack, &Swift,
-  &Turborepo, &Unity, &Unreal, &Zig,
-];
-
 #[derive(Debug, Parser)]
 pub(crate) struct Arguments {
   directories: Vec<PathBuf>,
@@ -25,14 +19,11 @@ impl Arguments {
   }
 
   pub(crate) fn run(self) -> Result {
-    let quiet = self.quiet;
-    let interactive = self.interactive && !quiet;
+    let rules: Vec<Box<dyn Rule>> = Config::load()?.try_into()?;
 
-    let style = Style::stdout();
-    let prompt_theme = ColorfulTheme::default();
+    let (style, theme) = (Style::stdout(), ColorfulTheme::default());
 
-    let mut total_bytes = 0;
-    let mut total_projects = 0usize;
+    let (mut total_bytes, mut total_projects) = (0, 0);
 
     for root in self.directories {
       ensure!(
@@ -44,18 +35,20 @@ impl Arguments {
       for directory in root.directories()? {
         let context = Context::new(directory, self.follow_symlinks)?;
 
-        for rule in RULES {
+        for rule in &rules {
+          let rule = rule.as_ref();
+
           if !rule.detection().matches(&context) {
             continue;
           }
 
-          let report = context.report(*rule)?;
+          let report = context.report(rule)?;
 
           if report.tasks.is_empty() {
             continue;
           }
 
-          if !quiet {
+          if !self.quiet {
             print!("{report}");
             io::stdout().flush()?;
           }
@@ -68,7 +61,7 @@ impl Arguments {
             let mut project_executed = false;
 
             for task in &report.tasks {
-              if interactive {
+              if self.interactive && !self.quiet {
                 let prompt = match task {
                   Task::Command(command) => format!(
                     "Run {} in {}?",
@@ -83,11 +76,12 @@ impl Arguments {
                   ),
                 };
 
-                if !Confirm::with_theme(&prompt_theme)
+                let confirmation = Confirm::with_theme(&theme)
                   .with_prompt(prompt)
                   .default(true)
-                  .interact()?
-                {
+                  .interact()?;
+
+                if !confirmation {
                   continue;
                 }
               }
@@ -109,7 +103,7 @@ impl Arguments {
       }
     }
 
-    if !quiet {
+    if !self.quiet {
       if self.dry_run {
         println!(
           "{}: {}, {}: {}",

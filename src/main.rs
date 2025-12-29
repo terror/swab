@@ -4,6 +4,7 @@ use {
   arguments::Arguments,
   bytes::Bytes,
   clap::Parser,
+  config::Config,
   context::Context,
   detection::Detection,
   dialoguer::{Confirm, theme::ColorfulTheme},
@@ -11,9 +12,10 @@ use {
   path_ext::PathExt,
   report::Report,
   rule::*,
+  serde::{Deserialize, Serialize},
   std::{
     backtrace::BacktraceStatus,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     env,
     fmt::{self, Display, Formatter},
     fs,
@@ -32,6 +34,7 @@ use {
 mod action;
 mod arguments;
 mod bytes;
+mod config;
 mod context;
 mod detection;
 mod path_ext;

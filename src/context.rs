@@ -161,7 +161,7 @@ mod tests {
       self.actions
     }
 
-    fn detection(&self) -> Detection<'static> {
+    fn detection(&self) -> Detection {
       Detection::Pattern("**")
     }
 
