@@ -12,10 +12,7 @@ impl Task {
       Task::Command(command) => {
         let command_text = command.trim();
 
-        ensure!(
-          !command_text.is_empty(),
-          "command action cannot be empty"
-        );
+        ensure!(!command_text.is_empty(), "command action cannot be empty");
 
         let mut command = if cfg!(windows) {
           let mut command = Command::new("cmd");
@@ -27,9 +24,7 @@ impl Task {
           command
         };
 
-        let status = command
-          .current_dir(context.root.clone())
-          .status()?;
+        let status = command.current_dir(context.root.clone()).status()?;
 
         ensure!(
           status.success(),

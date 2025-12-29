@@ -2,7 +2,6 @@ use super::*;
 
 #[derive(Debug)]
 pub(crate) struct Report {
-  pub(crate) bytes: u64,
   pub(crate) modified: SystemTime,
   pub(crate) root: PathBuf,
   pub(crate) rule_name: String,

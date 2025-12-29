@@ -117,8 +117,6 @@ impl Context {
   pub(crate) fn report(&self, rule: &dyn Rule) -> Result<Report> {
     let mut tasks = Vec::new();
 
-    let mut total_bytes = 0;
-
     for action in rule.actions() {
       if let Action::Command(command) = action {
         tasks.push(Task::Command(command));
@@ -130,8 +128,6 @@ impl Context {
 
       let bytes = full_path.size(self.follow_symlinks)?;
 
-      total_bytes += bytes;
-
       tasks.push(Task::Remove {
         path: relative_path,
         size: bytes,
@@ -139,7 +135,6 @@ impl Context {
     }
 
     Ok(Report {
-      bytes: total_bytes,
       modified: self.modified_time()?,
       root: self.root.clone(),
       rule_name: rule.name().to_string(),

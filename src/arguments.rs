@@ -42,6 +42,11 @@ impl Arguments {
       for directory in root.directories()? {
         let context = Context::new(directory, self.follow_symlinks)?;
 
+        let mut project_matched = false;
+        let mut project_executed = false;
+        let mut project_bytes = 0;
+        let mut seen_removals: HashSet<PathBuf> = HashSet::new();
+
         for rule in &rules {
           let rule = rule.as_ref();
 
@@ -55,57 +60,88 @@ impl Arguments {
             continue;
           }
 
+          project_matched = true;
+
           if !self.quiet {
             print!("{report}");
             io::stdout().flush()?;
           }
 
           if self.dry_run {
-            total_bytes += report.bytes;
-            total_projects += 1;
-          } else {
-            let mut project_bytes = 0;
-            let mut project_executed = false;
-
             for task in &report.tasks {
-              if self.interactive && !self.quiet {
-                let prompt = match task {
-                  Task::Command(command) => format!(
-                    "Run {} in {}?",
-                    style.apply(YELLOW, command),
-                    style.apply(CYAN, context.root.display())
-                  ),
-                  Task::Remove { path, size } => format!(
+              if let Task::Remove { path, size } = task
+                && seen_removals.insert(path.clone())
+              {
+                project_bytes += *size;
+              }
+            }
+          } else {
+            for task in &report.tasks {
+              if let Task::Remove { path, size } = task {
+                if seen_removals.contains(path) {
+                  continue;
+                }
+
+                if self.interactive && !self.quiet {
+                  let prompt = format!(
                     "Remove {} ({}) in {}?",
                     style.apply(CYAN, path.display()),
                     style.apply(GREEN, Bytes(*size)),
                     style.apply(DIM, context.root.display())
-                  ),
-                };
+                  );
 
-                let confirmation = Confirm::with_theme(&theme)
-                  .with_prompt(prompt)
-                  .default(true)
-                  .interact()?;
+                  let confirmation = Confirm::with_theme(&theme)
+                    .with_prompt(prompt)
+                    .default(true)
+                    .interact()?;
 
-                if !confirmation {
-                  continue;
+                  if !confirmation {
+                    seen_removals.insert(path.clone());
+                    continue;
+                  }
                 }
-              }
 
-              task.execute(&context)?;
-              project_executed = true;
-
-              if let Task::Remove { size, .. } = task {
+                task.execute(&context)?;
+                project_executed = true;
                 project_bytes += *size;
-              }
-            }
+                seen_removals.insert(path.clone());
+              } else {
+                if self.interactive && !self.quiet {
+                  let Task::Command(command) = task else {
+                    continue;
+                  };
 
-            if project_executed {
-              total_bytes += project_bytes;
-              total_projects += 1;
+                  let prompt = format!(
+                    "Run {} in {}?",
+                    style.apply(YELLOW, command),
+                    style.apply(CYAN, context.root.display())
+                  );
+
+                  let confirmation = Confirm::with_theme(&theme)
+                    .with_prompt(prompt)
+                    .default(true)
+                    .interact()?;
+
+                  if !confirmation {
+                    continue;
+                  }
+                }
+
+                task.execute(&context)?;
+                project_executed = true;
+              }
             }
           }
+        }
+
+        if self.dry_run {
+          if project_matched {
+            total_bytes += project_bytes;
+            total_projects += 1;
+          }
+        } else if project_executed {
+          total_bytes += project_bytes;
+          total_projects += 1;
         }
       }
     }
