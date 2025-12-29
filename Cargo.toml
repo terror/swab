@@ -1,13 +1,32 @@
 [package]
 name = "swab"
 version = "0.1.0"
+description = "A configurable project cleaning tool"
+authors = ["Liam <liam@scalzulli.com>"]
+license = "CC0-1.0"
+homepage = "https://github.com/terror/swab"
+repository = "https://github.com/terror/swab"
 edition = "2024"
+exclude = ["/screenshot.png"]
+categories = ["command-line-utilities"]
+keywords = ["command-line", "productivity", "utility"]
+resolver = "2"
 
-[lints.rust]
+[lints]
+workspace = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+
+[workspace]
+members = [".", "crates/*"]
+
+[workspace.lints.rust]
 mismatched_lifetime_syntaxes = "allow"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 
-[lints.clippy]
+[workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 arbitrary-source-item-ordering = "deny"
 enum_glob_use = "allow"
