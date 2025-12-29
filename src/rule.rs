@@ -1,9 +1,10 @@
 use super::*;
 
-pub(crate) use {cargo::Cargo, node::Node};
+pub(crate) use {cargo::Cargo, node::Node, zig::Zig};
 
 mod cargo;
 mod node;
+mod zig;
 
 pub(crate) trait Rule: Sync {
   /// A unique identifier for the rule.
