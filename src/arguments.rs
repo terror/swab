@@ -14,9 +14,19 @@ pub(crate) struct Arguments {
   dry_run: bool,
   #[clap(long, help = "Follow symlinks during traversal")]
   follow_symlinks: bool,
-  #[clap(short, long, help = "Prompt before each task")]
+  #[clap(
+    short,
+    long,
+    help = "Prompt before each task",
+    conflicts_with = "quiet"
+  )]
   interactive: bool,
-  #[clap(short, long, help = "Suppress all output")]
+  #[clap(
+    short,
+    long,
+    help = "Suppress all output",
+    conflicts_with = "interactive"
+  )]
   quiet: bool,
 }
 
@@ -167,5 +177,27 @@ impl Arguments {
     }
 
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use {
+    super::*,
+    clap::{CommandFactory, error::ErrorKind},
+  };
+
+  #[test]
+  fn interactive_and_quiet_conflict() {
+    let result = Arguments::command().try_get_matches_from([
+      "swab",
+      "--interactive",
+      "--quiet",
+    ]);
+
+    assert!(matches!(
+      result,
+      Err(error) if error.kind() == ErrorKind::ArgumentConflict
+    ));
   }
 }
