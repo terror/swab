@@ -71,7 +71,6 @@ pub(crate) trait Rule: Sync {
   fn detection(&self) -> Detection;
 
   /// A unique identifier for the rule.
-  #[allow(unused)]
   fn id(&self) -> &str;
 
   /// A human-readable name for the rule.

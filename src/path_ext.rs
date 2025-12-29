@@ -144,4 +144,57 @@ mod tests {
         .is_err()
     );
   }
+
+  #[test]
+  fn directories_returns_sorted_subdirectories() {
+    let tree = temptree::temptree! {
+      "file.txt": "content",
+      "zebra": {},
+      "alpha": {},
+      "middle": {}
+    };
+
+    let directories = tree.path().directories().unwrap();
+
+    assert_eq!(directories.len(), 3);
+
+    assert_eq!(directories[0], tree.path().join("alpha"));
+    assert_eq!(directories[1], tree.path().join("middle"));
+    assert_eq!(directories[2], tree.path().join("zebra"));
+  }
+
+  #[test]
+  fn directories_excludes_files() {
+    let tree = temptree::temptree! {
+      "file1.txt": "content",
+      "file2.txt": "content",
+      "only_dir": {}
+    };
+
+    let directories = tree.path().directories().unwrap();
+
+    assert_eq!(directories.len(), 1);
+
+    assert_eq!(*directories.first().unwrap(), tree.path().join("only_dir"));
+  }
+
+  #[test]
+  fn directories_empty_directory() {
+    let tree = temptree::temptree! {};
+
+    let directories = tree.path().directories().unwrap();
+
+    assert!(directories.is_empty());
+  }
+
+  #[test]
+  fn directories_nonexistent_path_returns_error() {
+    assert!(
+      temptree::temptree! {}
+        .path()
+        .join("does_not_exist")
+        .directories()
+        .is_err()
+    );
+  }
 }
