@@ -34,10 +34,29 @@ macro_rules! define_rule {
   };
 }
 
-pub(crate) use {cargo::Cargo, node::Node, zig::Zig};
+pub(crate) use {
+  cabal::Cabal, cargo::Cargo, cmake::Cmake, composer::Composer, elixir::Elixir,
+  godot::Godot, gradle::Gradle, maven::Maven, node::Node, pixi::Pixi,
+  pub_::Pub, sbt::Sbt, stack::Stack, swift::Swift, turborepo::Turborepo,
+  unity::Unity, zig::Zig,
+};
 
+mod cabal;
 mod cargo;
+mod cmake;
+mod composer;
+mod elixir;
+mod godot;
+mod gradle;
+mod maven;
 mod node;
+mod pixi;
+mod pub_;
+mod sbt;
+mod stack;
+mod swift;
+mod turborepo;
+mod unity;
 mod zig;
 
 pub(crate) trait Rule: Sync {

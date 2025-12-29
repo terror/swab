@@ -1,6 +1,9 @@
 use super::*;
 
-static RULES: &[&dyn Rule] = &[&Cargo, &Node, &Zig];
+static RULES: &[&dyn Rule] = &[
+  &Cabal, &Cargo, &Cmake, &Composer, &Elixir, &Godot, &Gradle, &Maven, &Node,
+  &Pixi, &Pub, &Sbt, &Stack, &Swift, &Turborepo, &Unity, &Zig,
+];
 
 #[derive(Debug, Parser)]
 pub(crate) struct Arguments {
