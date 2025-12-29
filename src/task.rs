@@ -10,21 +10,31 @@ impl Task {
   pub(crate) fn execute(&self, context: &Context) -> Result {
     match self {
       Task::Command(command) => {
-        let mut parts = command.split_whitespace();
+        let command_text = command.trim();
 
-        let program = parts
-          .next()
-          .ok_or_else(|| anyhow!("command action cannot be empty"))?;
+        ensure!(
+          !command_text.is_empty(),
+          "command action cannot be empty"
+        );
 
-        let status = Command::new(program)
-          .args(parts)
+        let mut command = if cfg!(windows) {
+          let mut command = Command::new("cmd");
+          command.arg("/C").arg(command_text);
+          command
+        } else {
+          let mut command = Command::new("sh");
+          command.arg("-c").arg(command_text);
+          command
+        };
+
+        let status = command
           .current_dir(context.root.clone())
           .status()?;
 
         ensure!(
           status.success(),
           "command `{}` failed in `{}`",
-          command,
+          command_text,
           context.root.display()
         );
 
