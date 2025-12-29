@@ -15,10 +15,19 @@ pub(crate) struct Arguments {
   follow_symlinks: bool,
   #[clap(short, long, help = "Prompt before each task")]
   interactive: bool,
+  #[clap(short, long, help = "Suppress all output")]
+  quiet: bool,
 }
 
 impl Arguments {
+  pub(crate) fn quiet(&self) -> bool {
+    self.quiet
+  }
+
   pub(crate) fn run(self) -> Result {
+    let quiet = self.quiet;
+    let interactive = self.interactive && !quiet;
+
     let style = Style::stdout();
     let prompt_theme = ColorfulTheme::default();
 
@@ -46,8 +55,10 @@ impl Arguments {
             continue;
           }
 
-          print!("{report}");
-          io::stdout().flush()?;
+          if !quiet {
+            print!("{report}");
+            io::stdout().flush()?;
+          }
 
           if self.dry_run {
             total_bytes += report.bytes;
@@ -57,7 +68,7 @@ impl Arguments {
             let mut project_executed = false;
 
             for task in &report.tasks {
-              if self.interactive {
+              if interactive {
                 let prompt = match task {
                   Task::Command(command) => format!(
                     "Run {} in {}?",
@@ -98,22 +109,24 @@ impl Arguments {
       }
     }
 
-    if self.dry_run {
-      println!(
-        "{}: {}, {}: {}",
-        style.apply(BOLD, "Projects matched"),
-        style.apply(CYAN, total_projects),
-        style.apply(BOLD, "Bytes matched"),
-        style.apply(GREEN, Bytes(total_bytes)),
-      );
-    } else {
-      println!(
-        "{}: {}, {}: {}",
-        style.apply(BOLD, "Projects cleaned"),
-        style.apply(CYAN, total_projects),
-        style.apply(BOLD, "Bytes deleted"),
-        style.apply(GREEN, Bytes(total_bytes)),
-      );
+    if !quiet {
+      if self.dry_run {
+        println!(
+          "{}: {}, {}: {}",
+          style.apply(BOLD, "Projects matched"),
+          style.apply(CYAN, total_projects),
+          style.apply(BOLD, "Bytes matched"),
+          style.apply(GREEN, Bytes(total_bytes)),
+        );
+      } else {
+        println!(
+          "{}: {}, {}: {}",
+          style.apply(BOLD, "Projects cleaned"),
+          style.apply(CYAN, total_projects),
+          style.apply(BOLD, "Bytes deleted"),
+          style.apply(GREEN, Bytes(total_bytes)),
+        );
+      }
     }
 
     Ok(())
