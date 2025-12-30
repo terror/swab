@@ -85,10 +85,15 @@ impl Context {
       (Vec::new(), Vec::new()),
       |(mut pruned, mut kept_directories), relative_path| {
         let full_path = self.root.join(&relative_path);
+        let metadata = if self.follow_symlinks {
+          fs::metadata(&full_path)
+        } else {
+          fs::symlink_metadata(&full_path)
+        };
 
-        if !full_path.exists() {
+        let Ok(metadata) = metadata else {
           return (pruned, kept_directories);
-        }
+        };
 
         if kept_directories
           .iter()
@@ -97,7 +102,7 @@ impl Context {
           return (pruned, kept_directories);
         }
 
-        if full_path.is_dir() {
+        if metadata.is_dir() {
           kept_directories.push(relative_path.clone());
         }
 

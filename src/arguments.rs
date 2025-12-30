@@ -49,7 +49,7 @@ impl Arguments {
         root.display()
       );
 
-      for directory in root.directories()? {
+      for directory in root.directories(self.follow_symlinks)? {
         let context = Context::new(directory, self.follow_symlinks)?;
 
         let mut project_matched = false;

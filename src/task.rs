@@ -38,13 +38,22 @@ impl Task {
       Task::Remove { path, .. } => {
         let full_path = context.root.join(path);
 
-        ensure!(
-          full_path.exists(),
-          "the path `{}` does not exist",
-          full_path.display()
-        );
+        let metadata = if context.follow_symlinks {
+          fs::metadata(&full_path)
+        } else {
+          fs::symlink_metadata(&full_path)
+        };
 
-        if full_path.is_dir() {
+        let metadata = metadata.map_err(|_| {
+          anyhow!("the path `{}` does not exist", full_path.display())
+        })?;
+
+        if !context.follow_symlinks && metadata.file_type().is_symlink() {
+          fs::remove_file(&full_path)?;
+          return Ok(());
+        }
+
+        if metadata.is_dir() {
           fs::remove_dir_all(&full_path)?;
         } else {
           fs::remove_file(&full_path)?;
