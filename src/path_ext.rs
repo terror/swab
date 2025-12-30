@@ -1,12 +1,12 @@
 use super::*;
 
 pub(crate) trait PathExt {
-  fn directories(&self) -> Result<Vec<PathBuf>>;
+  fn directories(&self, follow_symlinks: bool) -> Result<Vec<PathBuf>>;
   fn size(&self, follow_symlinks: bool) -> Result<u64>;
 }
 
 impl PathExt for Path {
-  fn directories(&self) -> Result<Vec<PathBuf>> {
+  fn directories(&self, follow_symlinks: bool) -> Result<Vec<PathBuf>> {
     let mut directories = Vec::new();
 
     for entry in fs::read_dir(self)? {
@@ -14,7 +14,16 @@ impl PathExt for Path {
 
       let path = entry.path();
 
-      if path.is_dir() {
+      let is_dir = if follow_symlinks {
+        path.is_dir()
+      } else {
+        entry
+          .file_type()
+          .map(|file_type| file_type.is_dir())
+          .unwrap_or(false)
+      };
+
+      if is_dir {
         directories.push(path);
       }
     }
@@ -25,9 +34,17 @@ impl PathExt for Path {
   }
 
   fn size(&self, follow_symlinks: bool) -> Result<u64> {
-    let metadata = fs::metadata(self)?;
+    let metadata = if follow_symlinks {
+      fs::metadata(self)?
+    } else {
+      fs::symlink_metadata(self)?
+    };
 
     if metadata.is_file() {
+      return Ok(metadata.len());
+    }
+
+    if !follow_symlinks && metadata.file_type().is_symlink() {
       return Ok(metadata.len());
     }
 
@@ -42,6 +59,8 @@ impl PathExt for Path {
 
       if entry.file_type().is_file() {
         total += entry.metadata()?.len();
+      } else if !follow_symlinks && entry.file_type().is_symlink() {
+        total += fs::symlink_metadata(entry.path())?.len();
       }
     }
 
@@ -154,7 +173,7 @@ mod tests {
       "middle": {}
     };
 
-    let directories = tree.path().directories().unwrap();
+    let directories = tree.path().directories(false).unwrap();
 
     assert_eq!(directories.len(), 3);
 
@@ -171,7 +190,7 @@ mod tests {
       "only_dir": {}
     };
 
-    let directories = tree.path().directories().unwrap();
+    let directories = tree.path().directories(false).unwrap();
 
     assert_eq!(directories.len(), 1);
 
@@ -182,7 +201,7 @@ mod tests {
   fn directories_empty_directory() {
     let tree = temptree::temptree! {};
 
-    let directories = tree.path().directories().unwrap();
+    let directories = tree.path().directories(false).unwrap();
 
     assert!(directories.is_empty());
   }
@@ -193,7 +212,7 @@ mod tests {
       temptree::temptree! {}
         .path()
         .join("does_not_exist")
-        .directories()
+        .directories(false)
         .is_err()
     );
   }
