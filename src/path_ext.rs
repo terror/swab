@@ -70,11 +70,11 @@ impl PathExt for Path {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use {super::*, temptree::temptree};
 
   #[test]
   fn size_of_file() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "test.txt": "hello"
     };
 
@@ -83,7 +83,7 @@ mod tests {
 
   #[test]
   fn size_of_empty_file() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "empty.txt": ""
     };
 
@@ -92,12 +92,12 @@ mod tests {
 
   #[test]
   fn size_of_empty_directory() {
-    assert_eq!(temptree::temptree! {}.path().size(false).unwrap(), 0);
+    assert_eq!(temptree! {}.path().size(false).unwrap(), 0);
   }
 
   #[test]
   fn size_of_directory_with_files() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "a.txt": "aaa",
       "b.txt": "bbbbb"
     };
@@ -107,7 +107,7 @@ mod tests {
 
   #[test]
   fn size_of_nested_directory() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "root.txt": "root",
       "subdir": {
         "nested.txt": "nested"
@@ -119,7 +119,7 @@ mod tests {
 
   #[test]
   fn size_of_deeply_nested_directory() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "a.txt": "a",
       "level1": {
         "b.txt": "bb",
@@ -134,7 +134,7 @@ mod tests {
 
   #[test]
   fn size_of_subdirectory() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "root.txt": "root",
       "subdir": {
         "nested.txt": "nested"
@@ -146,7 +146,7 @@ mod tests {
 
   #[test]
   fn size_of_empty_subdirectory() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "subdir": {}
     };
 
@@ -156,7 +156,7 @@ mod tests {
   #[test]
   fn size_of_nonexistent_path_returns_error() {
     assert!(
-      temptree::temptree! {}
+      temptree! {}
         .path()
         .join("does_not_exist")
         .size(false)
@@ -166,7 +166,7 @@ mod tests {
 
   #[test]
   fn directories_returns_sorted_subdirectories() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "file.txt": "content",
       "zebra": {},
       "alpha": {},
@@ -184,7 +184,7 @@ mod tests {
 
   #[test]
   fn directories_excludes_files() {
-    let tree = temptree::temptree! {
+    let tree = temptree! {
       "file1.txt": "content",
       "file2.txt": "content",
       "only_dir": {}
@@ -199,7 +199,7 @@ mod tests {
 
   #[test]
   fn directories_empty_directory() {
-    let tree = temptree::temptree! {};
+    let tree = temptree! {};
 
     let directories = tree.path().directories(false).unwrap();
 
@@ -209,7 +209,7 @@ mod tests {
   #[test]
   fn directories_nonexistent_path_returns_error() {
     assert!(
-      temptree::temptree! {}
+      temptree! {}
         .path()
         .join("does_not_exist")
         .directories(false)
