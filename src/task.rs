@@ -44,23 +44,74 @@ impl Task {
           fs::symlink_metadata(&full_path)
         };
 
-        let metadata = metadata.map_err(|_| {
-          anyhow!("the path `{}` does not exist", full_path.display())
-        })?;
+        let metadata = match metadata {
+          Ok(metadata) => metadata,
+          Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(());
+          }
+          Err(error) => return Err(error.into()),
+        };
 
         if !context.follow_symlinks && metadata.file_type().is_symlink() {
-          fs::remove_file(&full_path)?;
+          if let Err(error) = fs::remove_file(&full_path)
+            && error.kind() != io::ErrorKind::NotFound
+          {
+            return Err(error.into());
+          }
+
           return Ok(());
         }
 
         if metadata.is_dir() {
-          fs::remove_dir_all(&full_path)?;
-        } else {
-          fs::remove_file(&full_path)?;
+          if let Err(error) = fs::remove_dir_all(&full_path)
+            && error.kind() != io::ErrorKind::NotFound
+          {
+            return Err(error.into());
+          }
+        } else if let Err(error) = fs::remove_file(&full_path)
+          && error.kind() != io::ErrorKind::NotFound
+        {
+          return Err(error.into());
         }
 
         Ok(())
       }
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use {super::*, temptree::temptree};
+
+  #[test]
+  fn remove_is_idempotent_for_missing_paths() {
+    let tree = temptree! {
+      "stale.log": "x",
+      "dir": {
+        "file.txt": "x",
+      },
+    };
+
+    let root = tree.path();
+
+    let context = Context::new(root.to_path_buf(), false).unwrap();
+
+    fs::remove_file(root.join("stale.log")).unwrap();
+    fs::remove_dir_all(root.join("dir")).unwrap();
+
+    let file_task = Task::Remove {
+      path: PathBuf::from("stale.log"),
+      size: 0,
+    };
+
+    file_task.execute(&context).unwrap();
+
+    let dir_task = Task::Remove {
+      path: PathBuf::from("dir"),
+      size: 0,
+    };
+
+    dir_task.execute(&context).unwrap();
   }
 }
