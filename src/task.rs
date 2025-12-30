@@ -7,98 +7,101 @@ pub(crate) enum Task {
 }
 
 impl Task {
+  fn command(command: &str, context: &Context) -> Result {
+    let command_text = command.trim();
+
+    ensure!(!command_text.is_empty(), "command action cannot be empty");
+
+    let mut command = if cfg!(windows) {
+      let mut command = Command::new("cmd");
+      command.arg("/C").arg(command_text);
+      command
+    } else {
+      let mut command = Command::new("sh");
+      command.arg("-c").arg(command_text);
+      command
+    };
+
+    let status = command.current_dir(&context.root).status()?;
+
+    ensure!(
+      status.success(),
+      "command `{}` failed in `{}`",
+      command_text,
+      context.root.display()
+    );
+
+    Ok(())
+  }
+
   pub(crate) fn execute(&self, context: &Context) -> Result {
     match self {
-      Task::Command(command) => {
-        let command_text = command.trim();
+      Task::Command(command) => Self::command(command, context),
+      Task::Remove { path, .. } => Self::remove(context, path),
+    }
+  }
 
-        ensure!(!command_text.is_empty(), "command action cannot be empty");
+  fn read_metadata(
+    context: &Context,
+    path: &Path,
+  ) -> io::Result<Option<fs::Metadata>> {
+    let result = if context.follow_symlinks {
+      fs::metadata(path)
+    } else {
+      fs::symlink_metadata(path)
+    };
 
-        let mut command = if cfg!(windows) {
-          let mut command = Command::new("cmd");
-          command.arg("/C").arg(command_text);
-          command
-        } else {
-          let mut command = Command::new("sh");
-          command.arg("-c").arg(command_text);
-          command
-        };
+    match result {
+      Ok(meta) => Ok(Some(meta)),
+      Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+      Err(e) => Err(e),
+    }
+  }
 
-        let status = command.current_dir(context.root.clone()).status()?;
+  fn remove(context: &Context, relative: &Path) -> Result {
+    let path = context.root.join(relative);
 
-        ensure!(
-          status.success(),
-          "command `{}` failed in `{}`",
-          command_text,
-          context.root.display()
-        );
+    let Some(metadata) = Self::read_metadata(context, &path)? else {
+      return Ok(());
+    };
 
-        Ok(())
-      }
-      Task::Remove { path, .. } => {
-        let full_path = context.root.join(path);
+    if !context.follow_symlinks && metadata.file_type().is_symlink() {
+      return Self::remove_file(&path);
+    }
 
-        let metadata = if context.follow_symlinks {
-          fs::metadata(&full_path)
-        } else {
-          fs::symlink_metadata(&full_path)
-        };
+    if metadata.is_dir() {
+      Self::remove_directory(&path)
+    } else {
+      Self::remove_file(&path)
+    }
+  }
 
-        let metadata = match metadata {
-          Ok(metadata) => metadata,
-          Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(());
-          }
-          Err(error) => return Err(error.into()),
-        };
+  fn remove_directory(path: &Path) -> Result {
+    match fs::remove_dir_all(path) {
+      Ok(()) => Ok(()),
+      Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+      Err(e) => Err(e.into()),
+    }
+  }
 
-        if !context.follow_symlinks && metadata.file_type().is_symlink() {
-          if let Err(error) = fs::remove_file(&full_path)
-            && error.kind() != io::ErrorKind::NotFound
-          {
-            return Err(error.into());
-          }
-
-          return Ok(());
-        }
-
-        if metadata.is_dir() {
-          if let Err(error) = fs::remove_dir_all(&full_path)
-            && error.kind() != io::ErrorKind::NotFound
-          {
-            return Err(error.into());
-          }
-        } else if let Err(error) = fs::remove_file(&full_path)
-          && error.kind() != io::ErrorKind::NotFound
-        {
-          return Err(error.into());
-        }
-
-        Ok(())
-      }
+  fn remove_file(path: &Path) -> Result {
+    match fs::remove_file(path) {
+      Ok(()) => Ok(()),
+      Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+      Err(e) => Err(e.into()),
     }
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use {super::*, temptree::temptree};
+  use {super::*, tempfile::tempdir};
 
   #[test]
   fn remove_is_idempotent_for_missing_paths() {
-    let tree = temptree! {
-      "stale.log": "x",
-      "dir": {
-        "file.txt": "x",
-      },
-    };
+    let tempdir = tempdir().unwrap();
 
-    let root = tree.path();
-
-    let context = Context::new(root.to_path_buf(), false).unwrap();
-
-    fs::remove_file(root.join("stale.log")).unwrap();
-    fs::remove_dir_all(root.join("dir")).unwrap();
+    let context = Context::new(tempdir.path().to_path_buf(), false).unwrap();
 
     let file_task = Task::Remove {
       path: PathBuf::from("stale.log"),
@@ -107,11 +110,11 @@ mod tests {
 
     file_task.execute(&context).unwrap();
 
-    let dir_task = Task::Remove {
+    let directory_task = Task::Remove {
       path: PathBuf::from("dir"),
       size: 0,
     };
 
-    dir_task.execute(&context).unwrap();
+    directory_task.execute(&context).unwrap();
   }
 }
