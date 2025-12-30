@@ -92,6 +92,11 @@ impl TryFrom<ConfigAction> for Action {
     match value {
       ConfigAction::Remove { remove } => {
         ensure!(!remove.trim().is_empty(), "remove action cannot be empty");
+
+        Glob::new(&remove).map_err(|error| {
+          anyhow!("invalid remove pattern `{remove}`: {error}")
+        })?;
+
         Ok(Action::Remove(Box::leak(remove.into_boxed_str())))
       }
       ConfigAction::Command { command } => {
