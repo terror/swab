@@ -31,15 +31,12 @@ macro_rules! define_rule {
         $rule_name
       }
     }
+
+    ::inventory::submit!(&$name as &(dyn $crate::rule::Rule + Sync));
   };
 }
 
-pub(crate) use {
-  cabal::Cabal, cargo::Cargo, cmake::Cmake, composer::Composer, dotnet::Dotnet,
-  elixir::Elixir, godot::Godot, gradle::Gradle, jupyter::Jupyter, maven::Maven,
-  node::Node, pixi::Pixi, pub_::Pub, python::Python, sbt::Sbt, stack::Stack,
-  swift::Swift, turborepo::Turborepo, unity::Unity, unreal::Unreal, zig::Zig,
-};
+::inventory::collect!(&'static (dyn Rule + Sync));
 
 mod cabal;
 mod cargo;
