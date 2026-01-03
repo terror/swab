@@ -9,6 +9,7 @@ use {
 
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
+#[derive(Debug)]
 struct Test<'a> {
   arguments: Vec<String>,
   directory: Option<String>,
@@ -20,7 +21,6 @@ struct Test<'a> {
   tempdir: TempDir,
 }
 
-#[allow(dead_code)]
 impl<'a> Test<'a> {
   fn argument(self, argument: &str) -> Self {
     Self {
@@ -97,17 +97,6 @@ impl<'a> Test<'a> {
         .files
         .into_iter()
         .chain(once((path, content)))
-        .collect(),
-      ..self
-    }
-  }
-
-  fn files(self, files: &[(&'a str, &'a str)]) -> Self {
-    Self {
-      files: self
-        .files
-        .into_iter()
-        .chain(files.iter().copied())
         .collect(),
       ..self
     }
