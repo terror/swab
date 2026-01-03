@@ -10,6 +10,7 @@ use {
 
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 enum Entry<'a> {
   Directory(&'a str),
@@ -17,12 +18,6 @@ enum Entry<'a> {
 }
 
 impl Entry<'_> {
-  fn path(&self) -> &str {
-    match self {
-      Self::Directory(path) | Self::File(path, _) => path,
-    }
-  }
-
   fn create(&self, tempdir: &TempDir) -> Result {
     match self {
       Self::Directory(path) => {
@@ -42,6 +37,12 @@ impl Entry<'_> {
       }
     }
   }
+
+  fn path(&self) -> &str {
+    match self {
+      Self::Directory(path) | Self::File(path, _) => path,
+    }
+  }
 }
 
 #[allow(dead_code)]
@@ -57,18 +58,6 @@ struct Test<'a> {
 
 #[allow(dead_code)]
 impl<'a> Test<'a> {
-  fn new() -> Result<Self> {
-    Ok(Self {
-      arguments: Vec::new(),
-      create: Vec::new(),
-      exists: Vec::new(),
-      expected_status: 0,
-      expected_stderr: String::new(),
-      expected_stdout: String::new(),
-      tempdir: TempDir::with_prefix("swab-test")?,
-    })
-  }
-
   fn argument(self, argument: &str) -> Self {
     Self {
       arguments: self
@@ -78,6 +67,18 @@ impl<'a> Test<'a> {
         .collect(),
       ..self
     }
+  }
+
+  fn command(&self) -> Result<Command> {
+    let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
+
+    command
+      .env("NO_COLOR", "1")
+      .current_dir(&self.tempdir)
+      .arg(self.tempdir.path())
+      .args(&self.arguments);
+
+    Ok(command)
   }
 
   fn create(self, entries: &[Entry<'a>]) -> Self {
@@ -123,6 +124,18 @@ impl<'a> Test<'a> {
     }
   }
 
+  fn new() -> Result<Self> {
+    Ok(Self {
+      arguments: Vec::new(),
+      create: Vec::new(),
+      exists: Vec::new(),
+      expected_status: 0,
+      expected_stderr: String::new(),
+      expected_stdout: String::new(),
+      tempdir: TempDir::with_prefix("swab-test")?,
+    })
+  }
+
   fn run(self) -> Result {
     for entry in &self.create {
       entry.create(&self.tempdir)?;
@@ -135,12 +148,11 @@ impl<'a> Test<'a> {
     assert_eq!(
       output.status.code(),
       Some(self.expected_status),
-      "unexpected exit status\nstderr: {}",
-      stderr
+      "unexpected exit status\nstderr: {stderr}"
     );
 
     if self.expected_stderr.is_empty() && !stderr.is_empty() {
-      panic!("expected empty stderr: {}", stderr);
+      panic!("expected empty stderr: {stderr}");
     } else {
       assert_eq!(stderr, self.expected_stderr);
     }
@@ -156,8 +168,7 @@ impl<'a> Test<'a> {
       assert_eq!(
         self.exists.contains(path),
         self.tempdir.path().join(path).exists(),
-        "path `{}` existence mismatch: expected exists={}, actual exists={}",
-        path,
+        "path `{path}` existence mismatch: expected exists={}, actual exists={}",
         self.exists.contains(path),
         self.tempdir.path().join(path).exists()
       );
@@ -170,24 +181,11 @@ impl<'a> Test<'a> {
       .for_each(|path| {
         assert!(
           self.tempdir.path().join(path).exists(),
-          "expected path to exist: {}",
-          path
+          "expected path to exist: {path}"
         );
       });
 
     Ok(())
-  }
-
-  fn command(&self) -> Result<Command> {
-    let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
-
-    command
-      .env("NO_COLOR", "1")
-      .current_dir(&self.tempdir)
-      .arg(self.tempdir.path())
-      .args(&self.arguments);
-
-    Ok(command)
   }
 }
 
