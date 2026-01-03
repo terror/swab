@@ -416,3 +416,267 @@ fn zig_removes_cache_directories() -> Result {
     })
     .run()
 }
+
+#[test]
+fn cabal_removes_dist_newstyle() -> Result {
+  Test::new()?
+    .file("project/cabal.project", "")
+    .file(
+      "project/dist-newstyle/build/x86_64-linux/ghc-9.4.7/app-0.1.0.0/build/app/app",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/cabal.project"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn cmake_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/CMakeLists.txt", "")
+    .file("project/build/CMakeCache.txt", &"a".repeat(1000))
+    .file("project/cmake-build-debug/app", &"b".repeat(500))
+    .file("project/cmake-build-release/app", &"c".repeat(500))
+    .exists(&["project/CMakeLists.txt"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project CMake project (0 seconds ago)
+        ├─ build (1000 bytes)
+        ├─ cmake-build-debug (500 bytes)
+        └─ cmake-build-release (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn composer_removes_vendor() -> Result {
+  Test::new()?
+    .file("project/composer.json", "")
+    .file("project/vendor/autoload.php", &"a".repeat(1000))
+    .file("project/vendor/composer/installed.json", &"b".repeat(500))
+    .exists(&["project/composer.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Composer (PHP) project (0 seconds ago)
+        └─ vendor (1.46 KiB)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn godot_removes_godot_directory() -> Result {
+  Test::new()?
+    .file("project/project.godot", "")
+    .file("project/.godot/imported/icon.png", &"a".repeat(1000))
+    .exists(&["project/project.godot"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Godot 4 project (0 seconds ago)
+        └─ .godot (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn jupyter_removes_checkpoints() -> Result {
+  Test::new()?
+    .file("project/notebook.ipynb", "")
+    .file(
+      "project/.ipynb_checkpoints/notebook-checkpoint.ipynb",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/notebook.ipynb"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Jupyter project (0 seconds ago)
+        └─ .ipynb_checkpoints (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn pixi_removes_pixi_directory() -> Result {
+  Test::new()?
+    .file("project/pixi.toml", "")
+    .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
+    .exists(&["project/pixi.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Pixi project (0 seconds ago)
+        └─ .pixi (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn pub_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/pubspec.yaml", "")
+    .file("project/build/app.dill", &"a".repeat(1000))
+    .file("project/.dart_tool/package_config.json", &"b".repeat(500))
+    .file(
+      "project/linux/flutter/ephemeral/libflutter.so",
+      &"c".repeat(300),
+    )
+    .file(
+      "project/windows/flutter/ephemeral/flutter.dll",
+      &"d".repeat(200),
+    )
+    .exists(&["project/pubspec.yaml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Pub (Dart/Flutter) project (0 seconds ago)
+        ├─ .dart_tool (500 bytes)
+        ├─ build (1000 bytes)
+        ├─ linux/flutter/ephemeral (300 bytes)
+        └─ windows/flutter/ephemeral (200 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn sbt_removes_target_directories() -> Result {
+  Test::new()?
+    .file("project/build.sbt", "")
+    .file(
+      "project/target/scala-3.3.1/classes/Main.class",
+      &"a".repeat(1000),
+    )
+    .file(
+      "project/project/target/scala-2.12/sbt-1.0/classes/Build.class",
+      &"b".repeat(500),
+    )
+    .exists(&["project/build.sbt"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project SBT (Scala) project (0 seconds ago)
+        ├─ project/target (500 bytes)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn stack_removes_stack_work() -> Result {
+  Test::new()?
+    .file("project/stack.yaml", "")
+    .file(
+      "project/.stack-work/install/x86_64-linux/lts-21.0/9.4.7/bin/app",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/stack.yaml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Stack (Haskell) project (0 seconds ago)
+        └─ .stack-work (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn turborepo_removes_turbo_directory() -> Result {
+  Test::new()?
+    .file("project/turbo.json", "")
+    .file("project/.turbo/cache/data", &"a".repeat(1000))
+    .exists(&["project/turbo.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Turborepo project (0 seconds ago)
+        └─ .turbo (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn unity_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/Assembly-CSharp.csproj", "")
+    .file(
+      "project/Library/ScriptAssemblies/Assembly-CSharp.dll",
+      &"a".repeat(1000),
+    )
+    .file("project/Temp/UnityLockfile", &"b".repeat(500))
+    .file("project/Obj/Debug/Assembly-CSharp.dll", &"c".repeat(300))
+    .file("project/Logs/AssetImportWorker0.log", &"d".repeat(200))
+    .file("project/MemoryCaptures/capture.raw", &"e".repeat(100))
+    .file("project/Build/game.exe", &"f".repeat(100))
+    .file("project/Builds/game.exe", &"g".repeat(100))
+    .exists(&["project/Assembly-CSharp.csproj"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Unity project (0 seconds ago)
+        ├─ Build (100 bytes)
+        ├─ Builds (100 bytes)
+        ├─ Library (1000 bytes)
+        ├─ Logs (200 bytes)
+        ├─ MemoryCaptures (100 bytes)
+        ├─ Obj (300 bytes)
+        └─ Temp (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 2.25 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn unreal_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/MyGame.uproject", "")
+    .file("project/Binaries/Win64/MyGame.exe", &"a".repeat(1000))
+    .file("project/Build/WindowsNoEditor/MyGame.pak", &"b".repeat(500))
+    .file("project/Saved/Logs/MyGame.log", &"c".repeat(300))
+    .file("project/DerivedDataCache/DDC.bin", &"d".repeat(200))
+    .file(
+      "project/Intermediate/Build/Win64/MyGame.obj",
+      &"e".repeat(100),
+    )
+    .exists(&["project/MyGame.uproject"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Unreal Engine project (0 seconds ago)
+        ├─ Binaries (1000 bytes)
+        ├─ Build (500 bytes)
+        ├─ DerivedDataCache (200 bytes)
+        ├─ Intermediate (100 bytes)
+        └─ Saved (300 bytes)
+      Projects cleaned: 1, Bytes deleted: 2.05 KiB
+      "
+    })
+    .run()
+}
