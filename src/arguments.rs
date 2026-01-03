@@ -63,7 +63,11 @@ impl Arguments {
     let reports = rules
       .iter()
       .filter(|rule| rule.detection().matches(context))
-      .filter_map(|rule| context.report(rule.as_ref()).ok())
+      .map(|rule| context.report(rule.as_ref()))
+      .collect::<Result<Vec<_>>>()?;
+
+    let reports = reports
+      .into_iter()
       .filter(|report| !report.tasks.is_empty())
       .collect::<Vec<Report>>();
 
@@ -177,26 +181,33 @@ impl Arguments {
       Ok(())
     })?;
 
-    let (total_bytes, total_projects) = self
-      .directories
-      .iter()
-      .flat_map(|root| {
-        root.directories(self.follow_symlinks).into_iter().flatten()
-      })
-      .filter_map(|directory| {
-        Context::new(directory, self.follow_symlinks).ok()
-      })
-      .try_fold((0u64, 0u64), |totals, context| {
-        self.process_context(&context, &rules, style, &theme).map(
-          |(bytes, should_count)| {
-            if should_count {
-              (totals.0 + bytes, totals.1 + 1)
-            } else {
-              totals
-            }
-          },
-        )
-      })?;
+    let directories = self.directories.iter().try_fold(
+      Vec::new(),
+      |mut acc: Vec<PathBuf>, root| -> Result<Vec<PathBuf>> {
+        acc.extend(root.directories(self.follow_symlinks)?);
+        Ok(acc)
+      },
+    )?;
+
+    let contexts = directories
+      .into_iter()
+      .map(|directory| Context::new(directory, self.follow_symlinks))
+      .collect::<Result<Vec<_>>>()?;
+
+    let (total_bytes, total_projects) =
+      contexts
+        .into_iter()
+        .try_fold((0u64, 0u64), |totals, context| {
+          self.process_context(&context, &rules, style, &theme).map(
+            |(bytes, should_count)| {
+              if should_count {
+                (totals.0 + bytes, totals.1 + 1)
+              } else {
+                totals
+              }
+            },
+          )
+        })?;
 
     self.print_summary(style, total_projects, total_bytes);
 
