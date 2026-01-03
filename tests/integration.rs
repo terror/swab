@@ -208,3 +208,32 @@ fn cargo_removes_target_directory() -> Result {
     })
     .run()
 }
+
+#[test]
+fn cargo_removes_nested_target_directories() -> Result {
+  Test::new()?
+    .create(&[
+      File("workspace/Cargo.toml", ""),
+      File("workspace/target/debug/main", &"a".repeat(1000)),
+      File("workspace/crates/foo/Cargo.toml", ""),
+      File("workspace/crates/foo/target/debug/foo", &"b".repeat(500)),
+      File("workspace/crates/bar/Cargo.toml", ""),
+      File("workspace/crates/bar/target/debug/bar", &"c".repeat(500)),
+    ])
+    .exists(&[
+      "workspace/Cargo.toml",
+      "workspace/crates/foo/Cargo.toml",
+      "workspace/crates/bar/Cargo.toml",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/workspace Cargo project (0 seconds ago)
+        ├─ crates/bar/target (500 bytes)
+        ├─ crates/foo/target (500 bytes)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
