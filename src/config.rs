@@ -107,6 +107,26 @@ impl TryFrom<ConfigAction> for Action {
   }
 }
 
+struct StaticRule(&'static (dyn Rule + Sync));
+
+impl Rule for StaticRule {
+  fn actions(&self) -> &[Action] {
+    self.0.actions()
+  }
+
+  fn detection(&self) -> Detection {
+    self.0.detection()
+  }
+
+  fn id(&self) -> &str {
+    self.0.id()
+  }
+
+  fn name(&self) -> &str {
+    self.0.name()
+  }
+}
+
 #[derive(Debug)]
 struct CustomRule {
   actions: Vec<Action>,
@@ -167,7 +187,7 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
   type Error = Error;
 
   fn try_into(self) -> Result<Vec<Box<dyn Rule>>> {
-    let mut custom_rules: HashMap<String, CustomRule> = self
+    let mut custom_rules = self
       .rules
       .into_iter()
       .map(|rule| {
@@ -184,11 +204,13 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
         Ok(acc)
       })?;
 
-    let disabled: HashSet<String> =
-      self.default_rules.disabled.into_iter().collect();
-
-    let mut rules: Vec<Box<dyn Rule>> = Self::default_rules()
+    let disabled = self
+      .default_rules
+      .disabled
       .into_iter()
+      .collect::<HashSet<String>>();
+
+    let mut rules = Self::default_rules()
       .filter_map(|default| {
         let id = default.id().to_string();
 
@@ -200,9 +222,9 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
           return None;
         }
 
-        Some(default)
+        Some(Box::new(StaticRule(default)) as Box<dyn Rule>)
       })
-      .collect();
+      .collect::<Vec<Box<dyn Rule>>>();
 
     rules.extend(
       custom_rules
@@ -215,30 +237,11 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
 }
 
 impl Config {
-  pub(crate) fn default_rules() -> Vec<Box<dyn Rule>> {
-    vec![
-      Box::new(Cabal),
-      Box::new(Cargo),
-      Box::new(Cmake),
-      Box::new(Composer),
-      Box::new(Dotnet),
-      Box::new(Elixir),
-      Box::new(Godot),
-      Box::new(Gradle),
-      Box::new(Jupyter),
-      Box::new(Maven),
-      Box::new(Node),
-      Box::new(Pixi),
-      Box::new(Pub),
-      Box::new(Python),
-      Box::new(Sbt),
-      Box::new(Stack),
-      Box::new(Swift),
-      Box::new(Turborepo),
-      Box::new(Unity),
-      Box::new(Unreal),
-      Box::new(Zig),
-    ]
+  pub(crate) fn default_rules()
+  -> impl Iterator<Item = &'static (dyn Rule + Sync)> {
+    inventory::iter::<&'static (dyn Rule + Sync)>
+      .into_iter()
+      .copied()
   }
 
   pub(crate) fn load() -> Result<Self> {

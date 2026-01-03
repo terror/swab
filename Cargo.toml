@@ -49,6 +49,7 @@ clap = { version = "4.5.53", features = ["derive"] }
 confy = "2.0.0"
 dialoguer = "0.12.0"
 globset = "0.4.18"
+inventory = "0.3.21"
 serde = { version = "1.0.228", features = ["derive"] }
 walkdir = "2.5.0"
 
