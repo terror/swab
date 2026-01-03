@@ -740,6 +740,64 @@ fn no_matching_projects() -> Result {
 }
 
 #[test]
+fn multiple_projects_different_rules() -> Result {
+  Test::new()?
+    .file("rust-app/Cargo.toml", "")
+    .file("rust-app/target/debug/app", &"a".repeat(1000))
+    .file("node-app/package.json", "")
+    .file("node-app/node_modules/lodash/index.js", &"b".repeat(500))
+    .file("python-app/pyproject.toml", "")
+    .file("python-app/.venv/bin/python", &"c".repeat(300))
+    .exists(&[
+      "rust-app/Cargo.toml",
+      "node-app/package.json",
+      "python-app/pyproject.toml",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/node-app Node project (0 seconds ago)
+        └─ node_modules (500 bytes)
+      [ROOT]/python-app Python project (0 seconds ago)
+        └─ .venv (300 bytes)
+      [ROOT]/rust-app Cargo project (0 seconds ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 3, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn multiple_projects_same_rule() -> Result {
+  Test::new()?
+    .file("frontend/package.json", "")
+    .file("frontend/node_modules/react/index.js", &"a".repeat(1000))
+    .file("backend/package.json", "")
+    .file("backend/node_modules/express/index.js", &"b".repeat(500))
+    .file("shared/package.json", "")
+    .file("shared/node_modules/lodash/index.js", &"c".repeat(300))
+    .exists(&[
+      "frontend/package.json",
+      "backend/package.json",
+      "shared/package.json",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/backend Node project (0 seconds ago)
+        └─ node_modules (500 bytes)
+      [ROOT]/frontend Node project (0 seconds ago)
+        └─ node_modules (1000 bytes)
+      [ROOT]/shared Node project (0 seconds ago)
+        └─ node_modules (300 bytes)
+      Projects cleaned: 3, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn invalid_path_error() -> Result {
   Test::new()?
     .directory("nonexistent")
