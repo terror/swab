@@ -100,7 +100,7 @@ You can configure rules in a configuration file. The config file is located at:
 To disable specific built-in rules, add them to the `disabled` list:
 
 ```toml
-[default_rules]
+[default]
 disabled = ["node", "python"]
 ```
 
