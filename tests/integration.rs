@@ -36,7 +36,10 @@ impl<'a> Test<'a> {
   fn command(&self) -> Result<Command> {
     let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
 
-    command.env("NO_COLOR", "1").current_dir(&self.tempdir);
+    command
+      .env("NO_COLOR", "1")
+      .env("RUST_BACKTRACE", "0")
+      .current_dir(&self.tempdir);
 
     if let Some(dir) = &self.directory {
       command.arg(self.tempdir.path().join(dir));
