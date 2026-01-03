@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/terror/swab/releases/tag/0.1.1) - 2026-01-02
+
+### Added
+
+- Accept `default` as alias for `default_rules` in config ([#13](https://github.com/terror/swab/pull/13) by [terror](https://github.com/terror))
+
+### Misc
+
+- Scaffold integration test suite ([#14](https://github.com/terror/swab/pull/14) by [terror](https://github.com/terror))
+- Auto-register rules via `inventory` crate ([#12](https://github.com/terror/swab/pull/12) by [terror](https://github.com/terror))
+- Consolidate `Context` implementation blocks ([#11](https://github.com/terror/swab/pull/11) by [terror](https://github.com/terror))
+
 ## [0.1.1](https://github.com/terror/swab/releases/tag/0.1.1) - 2025-12-26
 
 ### Added

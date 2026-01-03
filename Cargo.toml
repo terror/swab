@@ -1,6 +1,6 @@
 [package]
 name = "swab"
-version = "0.1.1"
+version = "0.1.2"
 description = "A configurable project cleaning tool"
 authors = ["Liam <liam@scalzulli.com>"]
 license = "CC0-1.0"
