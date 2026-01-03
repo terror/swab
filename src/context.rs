@@ -9,39 +9,6 @@ pub(crate) struct Context {
 }
 
 impl Context {
-  pub(crate) fn new(root: PathBuf, follow_symlinks: bool) -> Result<Self> {
-    let (mut directories, mut files) = (HashSet::new(), HashSet::new());
-
-    for entry in WalkDir::new(&root).follow_links(follow_symlinks) {
-      let entry = entry?;
-
-      if entry.depth() == 0 {
-        continue;
-      }
-
-      let relative = entry
-        .path()
-        .strip_prefix(&root)
-        .unwrap_or(entry.path())
-        .to_path_buf();
-
-      if entry.file_type().is_dir() {
-        directories.insert(relative);
-      } else {
-        files.insert(relative);
-      }
-    }
-
-    Ok(Self {
-      directories,
-      files,
-      follow_symlinks,
-      root,
-    })
-  }
-}
-
-impl Context {
   pub(crate) fn contains(&self, pattern: &str) -> bool {
     let matcher = match Glob::new(pattern) {
       Ok(glob) => glob.compile_matcher(),
@@ -117,6 +84,37 @@ impl Context {
 
   pub(crate) fn modified_time(&self) -> Result<SystemTime> {
     Ok(fs::metadata(&self.root)?.modified()?)
+  }
+
+  pub(crate) fn new(root: PathBuf, follow_symlinks: bool) -> Result<Self> {
+    let (mut directories, mut files) = (HashSet::new(), HashSet::new());
+
+    for entry in WalkDir::new(&root).follow_links(follow_symlinks) {
+      let entry = entry?;
+
+      if entry.depth() == 0 {
+        continue;
+      }
+
+      let relative = entry
+        .path()
+        .strip_prefix(&root)
+        .unwrap_or(entry.path())
+        .to_path_buf();
+
+      if entry.file_type().is_dir() {
+        directories.insert(relative);
+      } else {
+        files.insert(relative);
+      }
+    }
+
+    Ok(Self {
+      directories,
+      files,
+      follow_symlinks,
+      root,
+    })
   }
 
   pub(crate) fn report(&self, rule: &dyn Rule) -> Result<Report> {
