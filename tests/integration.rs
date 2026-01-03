@@ -9,7 +9,6 @@ use {
 
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-#[allow(dead_code)]
 struct Test<'a> {
   arguments: Vec<String>,
   exists: Vec<&'a str>,
