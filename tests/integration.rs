@@ -11,6 +11,7 @@ type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 struct Test<'a> {
   arguments: Vec<String>,
+  directory: Option<String>,
   exists: Vec<&'a str>,
   expected_status: i32,
   expected_stderr: String,
@@ -35,13 +36,24 @@ impl<'a> Test<'a> {
   fn command(&self) -> Result<Command> {
     let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
 
-    command
-      .env("NO_COLOR", "1")
-      .current_dir(&self.tempdir)
-      .arg(self.tempdir.path())
-      .args(&self.arguments);
+    command.env("NO_COLOR", "1").current_dir(&self.tempdir);
+
+    if let Some(dir) = &self.directory {
+      command.arg(self.tempdir.path().join(dir));
+    } else {
+      command.arg(self.tempdir.path());
+    }
+
+    command.args(&self.arguments);
 
     Ok(command)
+  }
+
+  fn directory(self, directory: &str) -> Self {
+    Self {
+      directory: Some(directory.to_owned()),
+      ..self
+    }
   }
 
   fn exists(self, paths: &[&'a str]) -> Self {
@@ -101,6 +113,7 @@ impl<'a> Test<'a> {
   fn new() -> Result<Self> {
     Ok(Self {
       arguments: Vec::new(),
+      directory: None,
       exists: Vec::new(),
       expected_status: 0,
       expected_stderr: String::new(),
@@ -123,7 +136,9 @@ impl<'a> Test<'a> {
 
     let output = self.command()?.output()?;
 
-    let stderr = str::from_utf8(&output.stderr)?;
+    let stderr = str::from_utf8(&output.stderr)?
+      .replace(&self.tempdir.path().display().to_string(), "[ROOT]")
+      .replace('\\', "/");
 
     assert_eq!(
       output.status.code(),
@@ -677,5 +692,73 @@ fn unreal_removes_build_directories() -> Result {
       Projects cleaned: 1, Bytes deleted: 2.05 KiB
       "
     })
+    .run()
+}
+
+#[test]
+fn dry_run_does_not_delete_files() -> Result {
+  Test::new()?
+    .argument("--dry-run")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml", "project/target/debug/app"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cargo project (0 seconds ago)
+        └─ target (1000 bytes)
+      Projects matched: 1, Bytes matched: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn quiet_mode_suppresses_output() -> Result {
+  Test::new()?
+    .argument("--quiet")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml"])
+    .expected_status(0)
+    .expected_stdout("")
+    .run()
+}
+
+#[test]
+fn no_matching_projects() -> Result {
+  Test::new()?
+    .file("project/README.md", "# Hello")
+    .exists(&["project/README.md"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      Projects cleaned: 0, Bytes deleted: 0 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn invalid_path_error() -> Result {
+  Test::new()?
+    .directory("nonexistent")
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
+    )
+    .run()
+}
+
+#[test]
+fn file_path_instead_of_directory_error() -> Result {
+  Test::new()?
+    .directory("file.txt")
+    .file("file.txt", "content")
+    .exists(&["file.txt"])
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/file.txt` is not a valid directory\n",
+    )
     .run()
 }
