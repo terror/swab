@@ -179,6 +179,7 @@ impl Rule for CustomRule {
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub(crate) struct Config {
+  #[serde(alias = "default")]
   pub(crate) default_rules: DefaultRulesConfig,
   pub(crate) rules: Vec<RuleConfig>,
 }
