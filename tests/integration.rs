@@ -139,7 +139,8 @@ impl<'a> Test<'a> {
     }
 
     let stdout = str::from_utf8(&output.stdout)?
-      .replace(&self.tempdir.path().display().to_string(), "[ROOT]");
+      .replace(&self.tempdir.path().display().to_string(), "[ROOT]")
+      .replace('\\', "/");
 
     assert_eq!(stdout, self.expected_stdout);
 
