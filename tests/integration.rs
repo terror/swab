@@ -1,5 +1,4 @@
 use {
-  Entry::*,
   anyhow::Error,
   executable_path::executable_path,
   indoc::indoc,
@@ -11,48 +10,13 @@ use {
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
-enum Entry<'a> {
-  Directory(&'a str),
-  File(&'a str, &'a str),
-}
-
-impl Entry<'_> {
-  fn create(&self, tempdir: &TempDir) -> Result {
-    match self {
-      Self::Directory(path) => {
-        fs::create_dir_all(tempdir.path().join(path))?;
-        Ok(())
-      }
-      Self::File(path, content) => {
-        let full_path = tempdir.path().join(path);
-
-        if let Some(parent) = full_path.parent() {
-          fs::create_dir_all(parent)?;
-        }
-
-        fs::write(&full_path, content)?;
-
-        Ok(())
-      }
-    }
-  }
-
-  fn path(&self) -> &str {
-    match self {
-      Self::Directory(path) | Self::File(path, _) => path,
-    }
-  }
-}
-
-#[allow(dead_code)]
 struct Test<'a> {
   arguments: Vec<String>,
-  create: Vec<Entry<'a>>,
   exists: Vec<&'a str>,
   expected_status: i32,
   expected_stderr: String,
   expected_stdout: String,
+  files: Vec<(&'a str, &'a str)>,
   tempdir: TempDir,
 }
 
@@ -79,17 +43,6 @@ impl<'a> Test<'a> {
       .args(&self.arguments);
 
     Ok(command)
-  }
-
-  fn create(self, entries: &[Entry<'a>]) -> Self {
-    Self {
-      create: self
-        .create
-        .into_iter()
-        .chain(entries.iter().cloned())
-        .collect(),
-      ..self
-    }
   }
 
   fn exists(self, paths: &[&'a str]) -> Self {
@@ -124,21 +77,49 @@ impl<'a> Test<'a> {
     }
   }
 
+  fn file(self, path: &'a str, content: &'a str) -> Self {
+    Self {
+      files: self
+        .files
+        .into_iter()
+        .chain(once((path, content)))
+        .collect(),
+      ..self
+    }
+  }
+
+  fn files(self, files: &[(&'a str, &'a str)]) -> Self {
+    Self {
+      files: self
+        .files
+        .into_iter()
+        .chain(files.iter().copied())
+        .collect(),
+      ..self
+    }
+  }
+
   fn new() -> Result<Self> {
     Ok(Self {
       arguments: Vec::new(),
-      create: Vec::new(),
       exists: Vec::new(),
       expected_status: 0,
       expected_stderr: String::new(),
       expected_stdout: String::new(),
+      files: Vec::new(),
       tempdir: TempDir::with_prefix("swab-test")?,
     })
   }
 
   fn run(self) -> Result {
-    for entry in &self.create {
-      entry.create(&self.tempdir)?;
+    for (path, content) in &self.files {
+      let full_path = self.tempdir.path().join(path);
+
+      if let Some(parent) = full_path.parent() {
+        fs::create_dir_all(parent)?;
+      }
+
+      fs::write(&full_path, content)?;
     }
 
     let output = self.command()?.output()?;
@@ -162,7 +143,7 @@ impl<'a> Test<'a> {
 
     assert_eq!(stdout, self.expected_stdout);
 
-    let created = self.create.iter().map(Entry::path).collect::<Vec<&str>>();
+    let created = self.files.iter().map(|(path, _)| *path).collect::<Vec<_>>();
 
     for path in &created {
       assert_eq!(
@@ -192,11 +173,9 @@ impl<'a> Test<'a> {
 #[test]
 fn cargo_removes_target_directory() -> Result {
   Test::new()?
-    .create(&[
-      File("project/Cargo.toml", ""),
-      File("project/target/debug/app", &"a".repeat(1000)),
-      File("project/target/release/app", &"b".repeat(500)),
-    ])
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .file("project/target/release/app", &"b".repeat(500))
     .exists(&["project/Cargo.toml"])
     .expected_status(0)
     .expected_stdout(indoc! {
@@ -212,14 +191,12 @@ fn cargo_removes_target_directory() -> Result {
 #[test]
 fn cargo_removes_nested_target_directories() -> Result {
   Test::new()?
-    .create(&[
-      File("workspace/Cargo.toml", ""),
-      File("workspace/target/debug/main", &"a".repeat(1000)),
-      File("workspace/crates/foo/Cargo.toml", ""),
-      File("workspace/crates/foo/target/debug/foo", &"b".repeat(500)),
-      File("workspace/crates/bar/Cargo.toml", ""),
-      File("workspace/crates/bar/target/debug/bar", &"c".repeat(500)),
-    ])
+    .file("workspace/Cargo.toml", "")
+    .file("workspace/target/debug/main", &"a".repeat(1000))
+    .file("workspace/crates/foo/Cargo.toml", "")
+    .file("workspace/crates/foo/target/debug/foo", &"b".repeat(500))
+    .file("workspace/crates/bar/Cargo.toml", "")
+    .file("workspace/crates/bar/target/debug/bar", &"c".repeat(500))
     .exists(&[
       "workspace/Cargo.toml",
       "workspace/crates/foo/Cargo.toml",
@@ -233,6 +210,207 @@ fn cargo_removes_nested_target_directories() -> Result {
         ├─ crates/foo/target (500 bytes)
         └─ target (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_removes_bin_and_obj() -> Result {
+  Test::new()?
+    .file("project/App.csproj", "")
+    .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
+    .file("project/obj/Debug/net8.0/App.dll", &"b".repeat(500))
+    .exists(&["project/App.csproj"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project .NET project (0 seconds ago)
+        ├─ bin (1000 bytes)
+        └─ obj (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn elixir_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/mix.exs", "")
+    .file(
+      "project/_build/dev/lib/app/ebin/app.beam",
+      &"a".repeat(1000),
+    )
+    .file("project/.elixir_ls/build/dev/lib/app.ex", &"b".repeat(500))
+    .exists(&["project/mix.exs"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Elixir project (0 seconds ago)
+        ├─ .elixir_ls (500 bytes)
+        └─ _build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn gradle_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/build.gradle", "")
+    .file("project/build/classes/main/App.class", &"a".repeat(1000))
+    .file(
+      "project/.gradle/8.0/checksums/checksums.lock",
+      &"b".repeat(500),
+    )
+    .exists(&["project/build.gradle"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Gradle project (0 seconds ago)
+        ├─ .gradle (500 bytes)
+        └─ build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn gradle_kotlin_dsl() -> Result {
+  Test::new()?
+    .file("project/build.gradle.kts", "")
+    .file("project/build/classes/main/App.class", &"a".repeat(1000))
+    .exists(&["project/build.gradle.kts"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Gradle project (0 seconds ago)
+        └─ build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn maven_removes_target() -> Result {
+  Test::new()?
+    .file("project/pom.xml", "")
+    .file(
+      "project/target/classes/com/example/App.class",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/pom.xml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Maven project (0 seconds ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn node_removes_node_modules() -> Result {
+  Test::new()?
+    .file("project/package.json", "")
+    .file("project/node_modules/lodash/index.js", &"a".repeat(1000))
+    .file("project/node_modules/express/index.js", &"b".repeat(500))
+    .exists(&["project/package.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Node project (0 seconds ago)
+        └─ node_modules (1.46 KiB)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn node_removes_angular_cache() -> Result {
+  Test::new()?
+    .file("project/package.json", "")
+    .file("project/.angular/cache/data.json", &"a".repeat(1000))
+    .exists(&["project/package.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Node project (0 seconds ago)
+        └─ .angular (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn python_removes_cache_directories() -> Result {
+  Test::new()?
+    .file("project/pyproject.toml", "")
+    .file(
+      "project/.venv/lib/python3.12/site-packages/pip.py",
+      &"a".repeat(1000),
+    )
+    .file("project/__pycache__/main.cpython-312.pyc", &"b".repeat(500))
+    .file("project/.pytest_cache/v/cache/data", &"c".repeat(200))
+    .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
+    .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
+    .exists(&["project/pyproject.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Python project (0 seconds ago)
+        ├─ .mypy_cache (100 bytes)
+        ├─ .pytest_cache (200 bytes)
+        ├─ .ruff_cache (100 bytes)
+        ├─ .venv (1000 bytes)
+        └─ __pycache__ (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.86 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn swift_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/Package.swift", "")
+    .file("project/.build/debug/App", &"a".repeat(1000))
+    .file("project/.swiftpm/xcode/xcshareddata/data", &"b".repeat(500))
+    .exists(&["project/Package.swift"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Swift project (0 seconds ago)
+        ├─ .build (1000 bytes)
+        └─ .swiftpm (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn zig_removes_cache_directories() -> Result {
+  Test::new()?
+    .file("project/build.zig", "")
+    .file("project/zig-cache/o/data", &"a".repeat(1000))
+    .file("project/zig-out/bin/app", &"b".repeat(500))
+    .exists(&["project/build.zig"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Zig project (0 seconds ago)
+        ├─ zig-cache (1000 bytes)
+        └─ zig-out (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
     .run()
