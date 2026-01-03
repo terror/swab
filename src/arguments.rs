@@ -194,20 +194,20 @@ impl Arguments {
       .map(|directory| Context::new(directory, self.follow_symlinks))
       .collect::<Result<Vec<_>>>()?;
 
-    let (total_bytes, total_projects) =
-      contexts
-        .into_iter()
-        .try_fold((0u64, 0u64), |totals, context| {
-          self.process_context(&context, &rules, style, &theme).map(
-            |(bytes, should_count)| {
-              if should_count {
-                (totals.0 + bytes, totals.1 + 1)
-              } else {
-                totals
-              }
-            },
-          )
-        })?;
+    let (total_bytes, total_projects) = contexts.into_iter().try_fold(
+      (0u64, 0u64),
+      |totals @ (total_bytes, total_projects), context| {
+        self.process_context(&context, &rules, style, &theme).map(
+          |(bytes, should_count)| {
+            if should_count {
+              (total_bytes + bytes, total_projects + 1)
+            } else {
+              totals
+            }
+          },
+        )
+      },
+    )?;
 
     self.print_summary(style, total_projects, total_bytes);
 
