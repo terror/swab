@@ -31,6 +31,133 @@ pub(crate) struct Arguments {
 }
 
 impl Arguments {
+  fn print_summary(&self, style: Style, total_projects: u64, total_bytes: u64) {
+    if self.quiet {
+      return;
+    }
+
+    let (projects_label, bytes_label) = if self.dry_run {
+      ("Projects matched", "Bytes matched")
+    } else {
+      ("Projects cleaned", "Bytes deleted")
+    };
+
+    println!(
+      "{}: {}, {}: {}",
+      style.apply(BOLD, projects_label),
+      style.apply(CYAN, total_projects),
+      style.apply(BOLD, bytes_label),
+      style.apply(GREEN, Bytes(total_bytes)),
+    );
+  }
+
+  fn process_context(
+    &self,
+    context: &Context,
+    rules: &[Box<dyn Rule>],
+    style: Style,
+    theme: &ColorfulTheme,
+  ) -> Result<(u64, bool)> {
+    let mut seen_removals = HashSet::new();
+
+    let reports = rules
+      .iter()
+      .filter(|rule| rule.detection().matches(context))
+      .filter_map(|rule| context.report(rule.as_ref()).ok())
+      .filter(|report| !report.tasks.is_empty())
+      .collect::<Vec<Report>>();
+
+    let has_matches = !reports.is_empty();
+
+    let (bytes, executed) = reports.iter().try_fold(
+      (0u64, false),
+      |(bytes, executed), report| -> Result<_> {
+        if !self.quiet {
+          print!("{report}");
+          io::stdout().flush()?;
+        }
+
+        report.tasks.iter().try_fold(
+          (bytes, executed),
+          |(bytes, executed), task| -> Result<_> {
+            let (task_bytes, task_executed) = self.process_task(
+              task,
+              context,
+              &mut seen_removals,
+              style,
+              theme,
+            )?;
+
+            Ok((bytes + task_bytes, executed || task_executed))
+          },
+        )
+      },
+    )?;
+
+    let should_count = if self.dry_run { has_matches } else { executed };
+
+    Ok((bytes, should_count))
+  }
+
+  fn process_task(
+    &self,
+    task: &Task,
+    context: &Context,
+    seen_removals: &mut HashSet<PathBuf>,
+    style: Style,
+    theme: &ColorfulTheme,
+  ) -> Result<(u64, bool)> {
+    match task {
+      Task::Remove { path, size } => {
+        if !seen_removals.insert(path.clone()) {
+          return Ok((0, false));
+        }
+
+        if self.dry_run {
+          return Ok((*size, false));
+        }
+
+        let confirmation = Confirm::with_theme(theme)
+          .with_prompt(format!(
+            "Remove {} ({}) in {}?",
+            style.apply(CYAN, path.display()),
+            style.apply(GREEN, Bytes(*size)),
+            style.apply(DIM, context.root.display())
+          ))
+          .default(true);
+
+        if self.interactive && !confirmation.interact()? {
+          return Ok((0, false));
+        }
+
+        task.execute(context)?;
+
+        Ok((*size, true))
+      }
+      Task::Command(command) => {
+        if self.dry_run {
+          return Ok((0, false));
+        }
+
+        let confirmation = Confirm::with_theme(theme)
+          .with_prompt(format!(
+            "Run {} in {}?",
+            style.apply(YELLOW, command),
+            style.apply(CYAN, context.root.display())
+          ))
+          .default(true);
+
+        if self.interactive && !confirmation.interact()? {
+          return Ok((0, false));
+        }
+
+        task.execute(context)?;
+
+        Ok((0, true))
+      }
+    }
+  }
+
   pub(crate) fn quiet(&self) -> bool {
     self.quiet
   }
@@ -40,141 +167,38 @@ impl Arguments {
 
     let (style, theme) = (Style::stdout(), ColorfulTheme::default());
 
-    let (mut total_bytes, mut total_projects) = (0, 0);
-
-    for root in self.directories {
+    self.directories.iter().try_for_each(|root| {
       ensure!(
         root.is_dir(),
         "the path `{}` is not a valid directory",
         root.display()
       );
 
-      for directory in root.directories(self.follow_symlinks)? {
-        let context = Context::new(directory, self.follow_symlinks)?;
+      Ok(())
+    })?;
 
-        let mut project_matched = false;
-        let mut project_executed = false;
-        let mut project_bytes = 0;
-        let mut seen_removals: HashSet<PathBuf> = HashSet::new();
-
-        for rule in &rules {
-          let rule = rule.as_ref();
-
-          if !rule.detection().matches(&context) {
-            continue;
-          }
-
-          let report = context.report(rule)?;
-
-          if report.tasks.is_empty() {
-            continue;
-          }
-
-          project_matched = true;
-
-          if !self.quiet {
-            print!("{report}");
-            io::stdout().flush()?;
-          }
-
-          if self.dry_run {
-            for task in &report.tasks {
-              if let Task::Remove { path, size } = task
-                && seen_removals.insert(path.clone())
-              {
-                project_bytes += *size;
-              }
+    let (total_bytes, total_projects) = self
+      .directories
+      .iter()
+      .flat_map(|root| {
+        root.directories(self.follow_symlinks).into_iter().flatten()
+      })
+      .filter_map(|directory| {
+        Context::new(directory, self.follow_symlinks).ok()
+      })
+      .try_fold((0u64, 0u64), |totals, context| {
+        self.process_context(&context, &rules, style, &theme).map(
+          |(bytes, should_count)| {
+            if should_count {
+              (totals.0 + bytes, totals.1 + 1)
+            } else {
+              totals
             }
-          } else {
-            for task in &report.tasks {
-              if let Task::Remove { path, size } = task {
-                if seen_removals.contains(path) {
-                  continue;
-                }
+          },
+        )
+      })?;
 
-                if self.interactive {
-                  let prompt = format!(
-                    "Remove {} ({}) in {}?",
-                    style.apply(CYAN, path.display()),
-                    style.apply(GREEN, Bytes(*size)),
-                    style.apply(DIM, context.root.display())
-                  );
-
-                  let confirmation = Confirm::with_theme(&theme)
-                    .with_prompt(prompt)
-                    .default(true)
-                    .interact()?;
-
-                  if !confirmation {
-                    seen_removals.insert(path.clone());
-                    continue;
-                  }
-                }
-
-                task.execute(&context)?;
-                project_executed = true;
-                project_bytes += *size;
-                seen_removals.insert(path.clone());
-              } else {
-                if self.interactive {
-                  let Task::Command(command) = task else {
-                    continue;
-                  };
-
-                  let prompt = format!(
-                    "Run {} in {}?",
-                    style.apply(YELLOW, command),
-                    style.apply(CYAN, context.root.display())
-                  );
-
-                  let confirmation = Confirm::with_theme(&theme)
-                    .with_prompt(prompt)
-                    .default(true)
-                    .interact()?;
-
-                  if !confirmation {
-                    continue;
-                  }
-                }
-
-                task.execute(&context)?;
-                project_executed = true;
-              }
-            }
-          }
-        }
-
-        if self.dry_run {
-          if project_matched {
-            total_bytes += project_bytes;
-            total_projects += 1;
-          }
-        } else if project_executed {
-          total_bytes += project_bytes;
-          total_projects += 1;
-        }
-      }
-    }
-
-    if !self.quiet {
-      if self.dry_run {
-        println!(
-          "{}: {}, {}: {}",
-          style.apply(BOLD, "Projects matched"),
-          style.apply(CYAN, total_projects),
-          style.apply(BOLD, "Bytes matched"),
-          style.apply(GREEN, Bytes(total_bytes)),
-        );
-      } else {
-        println!(
-          "{}: {}, {}: {}",
-          style.apply(BOLD, "Projects cleaned"),
-          style.apply(CYAN, total_projects),
-          style.apply(BOLD, "Bytes deleted"),
-          style.apply(GREEN, Bytes(total_bytes)),
-        );
-      }
-    }
+    self.print_summary(style, total_projects, total_bytes);
 
     Ok(())
   }
