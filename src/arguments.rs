@@ -31,7 +31,7 @@ pub(crate) struct Arguments {
 }
 
 impl Arguments {
-  fn print_summary(&self, style: Style, total_projects: u64, total_bytes: u64) {
+  fn print_summary(&self, total_projects: u64, total_bytes: u64) {
     if self.quiet {
       return;
     }
@@ -41,6 +41,8 @@ impl Arguments {
     } else {
       ("Projects cleaned", "Bytes deleted")
     };
+
+    let style = Style::stdout();
 
     println!(
       "{}: {}, {}: {}",
@@ -55,8 +57,6 @@ impl Arguments {
     &self,
     context: &Context,
     rules: &[Box<dyn Rule>],
-    style: Style,
-    theme: &ColorfulTheme,
   ) -> Result<(u64, bool)> {
     let mut seen_removals = HashSet::new();
 
@@ -84,13 +84,8 @@ impl Arguments {
         report.tasks.iter().try_fold(
           (bytes, executed),
           |(bytes, executed), task| -> Result<_> {
-            let (task_bytes, task_executed) = self.process_task(
-              task,
-              context,
-              &mut seen_removals,
-              style,
-              theme,
-            )?;
+            let (task_bytes, task_executed) =
+              self.process_task(task, context, &mut seen_removals)?;
 
             Ok((bytes + task_bytes, executed || task_executed))
           },
@@ -108,9 +103,9 @@ impl Arguments {
     task: &Task,
     context: &Context,
     seen_removals: &mut HashSet<PathBuf>,
-    style: Style,
-    theme: &ColorfulTheme,
   ) -> Result<(u64, bool)> {
+    let (style, theme) = (Style::stdout(), ColorfulTheme::default());
+
     match task {
       Task::Remove { path, size } => {
         if !seen_removals.insert(path.clone()) {
@@ -121,7 +116,7 @@ impl Arguments {
           return Ok((*size, false));
         }
 
-        let confirmation = Confirm::with_theme(theme)
+        let confirmation = Confirm::with_theme(&theme)
           .with_prompt(format!(
             "Remove {} ({}) in {}?",
             style.apply(CYAN, path.display()),
@@ -143,7 +138,7 @@ impl Arguments {
           return Ok((0, false));
         }
 
-        let confirmation = Confirm::with_theme(theme)
+        let confirmation = Confirm::with_theme(&theme)
           .with_prompt(format!(
             "Run {} in {}?",
             style.apply(YELLOW, command),
@@ -168,8 +163,6 @@ impl Arguments {
 
   pub(crate) fn run(self) -> Result {
     let rules: Vec<Box<dyn Rule>> = Config::load()?.try_into()?;
-
-    let (style, theme) = (Style::stdout(), ColorfulTheme::default());
 
     self.directories.iter().try_for_each(|root| {
       ensure!(
@@ -197,19 +190,19 @@ impl Arguments {
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
       |totals @ (total_bytes, total_projects), context| {
-        self.process_context(&context, &rules, style, &theme).map(
-          |(bytes, should_count)| {
+        self
+          .process_context(&context, &rules)
+          .map(|(bytes, should_count)| {
             if should_count {
               (total_bytes + bytes, total_projects + 1)
             } else {
               totals
             }
-          },
-        )
+          })
       },
     )?;
 
-    self.print_summary(style, total_projects, total_bytes);
+    self.print_summary(total_projects, total_bytes);
 
     Ok(())
   }
