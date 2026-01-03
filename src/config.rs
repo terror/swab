@@ -187,7 +187,7 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
   type Error = Error;
 
   fn try_into(self) -> Result<Vec<Box<dyn Rule>>> {
-    let mut custom_rules: HashMap<String, CustomRule> = self
+    let mut custom_rules = self
       .rules
       .into_iter()
       .map(|rule| {
@@ -204,10 +204,13 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
         Ok(acc)
       })?;
 
-    let disabled: HashSet<String> =
-      self.default_rules.disabled.into_iter().collect();
+    let disabled = self
+      .default_rules
+      .disabled
+      .into_iter()
+      .collect::<HashSet<String>>();
 
-    let mut rules: Vec<Box<dyn Rule>> = Self::default_rules()
+    let mut rules = Self::default_rules()
       .filter_map(|default| {
         let id = default.id().to_string();
 
@@ -221,7 +224,7 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
 
         Some(Box::new(StaticRule(default)) as Box<dyn Rule>)
       })
-      .collect();
+      .collect::<Vec<Box<dyn Rule>>>();
 
     rules.extend(
       custom_rules
