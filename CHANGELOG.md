@@ -4,16 +4,16 @@
 
 ### Added
 
-- Default to current directory when no directories are specified (#25)
-- Include root directories in project scan (#24)
-- Add `rules` subcommand (#23)
+- Default to current directory when no directories are specified ([#25](https://github.com/terror/swab/pull/25) by [terror](https://github.com/terror))
+- Include root directories in project scan ([#24](https://github.com/terror/swab/pull/24) by [terror](https://github.com/terror))
+- Add `rules` subcommand ([#23](https://github.com/terror/swab/pull/23) by [terror](https://github.com/terror))
 
 ### Misc
 
-- Bump clap from 4.5.53 to 4.5.54 (#20)
-- Add dependabot workflow (#19)
-- Remove explicit `dead_code` attribute from `Test` (#18)
-- Refactor `Arguments::run` to use iterator combinators (#16)
+- Bump clap from 4.5.53 to 4.5.54 ([#20](https://github.com/terror/swab/pull/20) by [app/dependabot](https://github.com/app/dependabot))
+- Add dependabot workflow ([#19](https://github.com/terror/swab/pull/19) by [terror](https://github.com/terror))
+- Remove explicit `dead_code` attribute from `Test` ([#18](https://github.com/terror/swab/pull/18) by [terror](https://github.com/terror))
+- Refactor `Arguments::run` to use iterator combinators ([#16](https://github.com/terror/swab/pull/16) by [terror](https://github.com/terror))
 
 ## [0.1.2](https://github.com/terror/swab/releases/tag/0.1.2) - 2026-01-02
 
