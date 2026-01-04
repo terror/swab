@@ -196,6 +196,24 @@ fn cargo_removes_target_directory() -> Result {
 }
 
 #[test]
+fn cargo_removes_target_directory_at_root() -> Result {
+  Test::new()?
+    .file("Cargo.toml", "")
+    .file("target/debug/app", &"a".repeat(1000))
+    .file("target/release/app", &"b".repeat(500))
+    .exists(&["Cargo.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT] Cargo project (0 seconds ago)
+        └─ target (1.46 KiB)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn cargo_removes_nested_target_directories() -> Result {
   Test::new()?
     .file("workspace/Cargo.toml", "")
@@ -511,8 +529,8 @@ fn jupyter_removes_checkpoints() -> Result {
     .expected_status(0)
     .expected_stdout(indoc! {
       "
-      [ROOT]/project Jupyter project (0 seconds ago)
-        └─ .ipynb_checkpoints (1000 bytes)
+      [ROOT] Jupyter project (0 seconds ago)
+        └─ project/.ipynb_checkpoints (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
