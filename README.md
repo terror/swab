@@ -75,7 +75,11 @@ Below is the output of `swab --help`:
 ```present cargo run -- --help
 A configurable project cleaning tool
 
-Usage: swab [OPTIONS] [DIRECTORIES]...
+Usage: swab [OPTIONS] [DIRECTORIES]... [COMMAND]
+
+Commands:
+  rules  List all available rules
+  help   Print this message or the help of the given subcommand(s)
 
 Arguments:
   [DIRECTORIES]...  Directories to scan for projects to clean
