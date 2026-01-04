@@ -52,6 +52,7 @@ impl Context {
       (Vec::new(), Vec::new()),
       |(mut pruned, mut kept_directories), relative_path| {
         let full_path = self.root.join(&relative_path);
+
         let metadata = if self.follow_symlinks {
           fs::metadata(&full_path)
         } else {

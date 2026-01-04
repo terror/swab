@@ -28,6 +28,8 @@ pub(crate) struct Arguments {
     conflicts_with = "interactive"
   )]
   quiet: bool,
+  #[clap(subcommand)]
+  subcommand: Option<Subcommand>,
 }
 
 impl Arguments {
@@ -162,6 +164,10 @@ impl Arguments {
   }
 
   pub(crate) fn run(self) -> Result {
+    if let Some(subcommand) = self.subcommand {
+      return subcommand.run();
+    }
+
     let rules: Vec<Box<dyn Rule>> = Config::load()?.try_into()?;
 
     self.directories.iter().try_for_each(|root| {

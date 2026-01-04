@@ -25,6 +25,39 @@ pub(crate) enum ConfigDetection {
   PatternMap { pattern: String },
 }
 
+impl Display for ConfigDetection {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::All { all } => {
+        write!(
+          f,
+          "({})",
+          all
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" AND ")
+        )
+      }
+      Self::Any { any } => {
+        write!(
+          f,
+          "({})",
+          any
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" OR ")
+        )
+      }
+      Self::Not { not } => write!(f, "NOT {not}"),
+      Self::Pattern(pattern) | Self::PatternMap { pattern } => {
+        write!(f, "{pattern}")
+      }
+    }
+  }
+}
+
 impl TryFrom<ConfigDetection> for Detection {
   type Error = Error;
 
@@ -83,6 +116,15 @@ impl ConfigDetection {
 pub(crate) enum ConfigAction {
   Command { command: String },
   Remove { remove: String },
+}
+
+impl Display for ConfigAction {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Command { command } => write!(f, "run `{command}`"),
+      Self::Remove { remove } => write!(f, "remove {remove}"),
+    }
+  }
 }
 
 impl TryFrom<ConfigAction> for Action {

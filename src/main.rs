@@ -25,7 +25,8 @@ use {
     str::FromStr,
     time::{Duration, SystemTime},
   },
-  style::{BOLD, CYAN, DIM, GREEN, Style, YELLOW},
+  style::{BOLD, CYAN, DIM, GREEN, RED, Style, YELLOW},
+  subcommand::Subcommand,
   system_time_ext::SystemTimeExt,
   task::Task,
   walkdir::WalkDir,
@@ -41,6 +42,7 @@ mod path_ext;
 mod report;
 mod rule;
 mod style;
+mod subcommand;
 mod system_time_ext;
 mod task;
 

@@ -1,9 +1,10 @@
 use super::*;
 
 pub(crate) const BOLD: &str = "1";
-pub(crate) const DIM: &str = "2";
 pub(crate) const CYAN: &str = "36";
+pub(crate) const DIM: &str = "2";
 pub(crate) const GREEN: &str = "32";
+pub(crate) const RED: &str = "31";
 pub(crate) const YELLOW: &str = "33";
 
 #[derive(Clone, Copy, Debug)]
