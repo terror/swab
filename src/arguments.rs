@@ -170,7 +170,13 @@ impl Arguments {
 
     let rules: Vec<Box<dyn Rule>> = Config::load()?.try_into()?;
 
-    self.directories.iter().try_for_each(|root| {
+    let directories = if self.directories.is_empty() {
+      vec![env::current_dir()?]
+    } else {
+      self.directories.clone()
+    };
+
+    directories.iter().try_for_each(|root| {
       ensure!(
         root.is_dir(),
         "the path `{}` is not a valid directory",
@@ -180,7 +186,7 @@ impl Arguments {
       Ok(())
     })?;
 
-    let directories = self.directories.iter().try_fold(
+    let directories = directories.iter().try_fold(
       Vec::new(),
       |mut acc: Vec<PathBuf>, root| -> Result<Vec<PathBuf>> {
         acc.push(root.clone());
