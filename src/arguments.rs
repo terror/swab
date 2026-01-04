@@ -183,6 +183,7 @@ impl Arguments {
     let directories = self.directories.iter().try_fold(
       Vec::new(),
       |mut acc: Vec<PathBuf>, root| -> Result<Vec<PathBuf>> {
+        acc.push(root.clone());
         acc.extend(root.directories(self.follow_symlinks)?);
         Ok(acc)
       },

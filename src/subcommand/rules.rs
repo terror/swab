@@ -93,7 +93,7 @@ pub(crate) fn run() -> Result {
   let mut new_custom_rules = config
     .rules
     .iter()
-    .filter(|r| !default_ids.contains(r.id.as_str()))
+    .filter(|rule| !default_ids.contains(rule.id.as_str()))
     .collect::<Vec<_>>();
 
   new_custom_rules.sort_by(|a, b| a.id.cmp(&b.id));
