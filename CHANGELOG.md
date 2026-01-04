@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.3](https://github.com/terror/swab/releases/tag/0.1.1) - 2026-01-03
+## [0.1.3](https://github.com/terror/swab/releases/tag/0.1.3) - 2026-01-03
 
 ### Added
 
@@ -15,7 +15,7 @@
 - Remove explicit `dead_code` attribute from `Test` (#18)
 - Refactor `Arguments::run` to use iterator combinators (#16)
 
-## [0.1.2](https://github.com/terror/swab/releases/tag/0.1.1) - 2026-01-02
+## [0.1.2](https://github.com/terror/swab/releases/tag/0.1.2) - 2026-01-02
 
 ### Added
 
