@@ -32,11 +32,11 @@ macro_rules! define_rule {
       }
     }
 
-    ::inventory::submit!(&$name as &(dyn $crate::rule::Rule + Sync));
+    inventory::submit!(&$name as &(dyn $crate::rule::Rule + Sync));
   };
 }
 
-::inventory::collect!(&'static (dyn Rule + Sync));
+inventory::collect!(&'static (dyn Rule + Sync));
 
 mod cabal;
 mod cargo;
