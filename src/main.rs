@@ -11,7 +11,7 @@ use {
   globset::Glob,
   path_ext::PathExt,
   report::Report,
-  rule::*,
+  rule::Rule,
   serde::{Deserialize, Serialize},
   std::{
     backtrace::BacktraceStatus,
