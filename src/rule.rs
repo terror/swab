@@ -14,12 +14,12 @@ macro_rules! define_rule {
     $(#[$doc])*
     pub(crate) struct $name;
 
-    impl $crate::rule::Rule for $name {
-      fn actions(&self) -> &[$crate::action::Action] {
+    impl Rule for $name {
+      fn actions(&self) -> &[Action] {
         &[$($action),*]
       }
 
-      fn detection(&self) -> $crate::detection::Detection {
+      fn detection(&self) -> Detection {
         $detection
       }
 
@@ -32,11 +32,11 @@ macro_rules! define_rule {
       }
     }
 
-    ::inventory::submit!(&$name as &(dyn $crate::rule::Rule + Sync));
+    inventory::submit!(&$name as &(dyn Rule + Sync));
   };
 }
 
-::inventory::collect!(&'static (dyn Rule + Sync));
+inventory::collect!(&'static (dyn Rule + Sync));
 
 mod cabal;
 mod cargo;
