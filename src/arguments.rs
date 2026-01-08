@@ -39,7 +39,7 @@ pub(crate) struct Arguments {
   subcommand: Option<Subcommand>,
 }
 
-fn parse_age(value: &str) -> std::result::Result<Duration, String> {
+fn parse_age(value: &str) -> Result<Duration, String> {
   let trimmed = value.trim();
 
   let core = if let Some(prefix) = trimmed.strip_suffix(" ago") {
