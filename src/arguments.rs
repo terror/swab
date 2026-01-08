@@ -8,6 +8,13 @@ use super::*;
   about = "A configurable project cleaning tool"
 )]
 pub(crate) struct Arguments {
+  #[clap(
+    long,
+    value_name = "EXPR",
+    value_parser = parse_age,
+    help = "Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)"
+  )]
+  age: Option<Duration>,
   #[arg(help = "Directories to scan for projects to clean")]
   directories: Vec<PathBuf>,
   #[clap(long, help = "Enable dry run mode")]
@@ -28,13 +35,6 @@ pub(crate) struct Arguments {
     conflicts_with = "interactive"
   )]
   quiet: bool,
-  #[clap(
-    long,
-    value_name = "EXPR",
-    value_parser = parse_age,
-    help = "Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)"
-  )]
-  age: Option<Duration>,
   #[clap(subcommand)]
   subcommand: Option<Subcommand>,
 }
@@ -83,7 +83,7 @@ fn parse_age(value: &str) -> std::result::Result<Duration, String> {
     _ => {
       return Err(
         "invalid age: unit must be one of s, m, h, d, w, mo, y".to_string(),
-      )
+      );
     }
   };
 
@@ -271,7 +271,7 @@ impl Arguments {
       (0u64, 0u64),
       |totals @ (total_bytes, total_projects), context| {
         if self.age.is_some() {
-          let modified = context.activity_modified_time()?;
+          let modified = context.modified_time()?;
 
           if modified > age_cutoff {
             return Ok(totals);
@@ -319,10 +319,22 @@ mod tests {
 
   #[test]
   fn parse_age_accepts_valid_inputs() {
-    assert_eq!(parse_age("30d").unwrap(), Duration::from_secs(30 * 24 * 60 * 60));
-    assert_eq!(parse_age("12h ago").unwrap(), Duration::from_secs(12 * 60 * 60));
-    assert_eq!(parse_age("2w").unwrap(), Duration::from_secs(2 * 7 * 24 * 60 * 60));
-    assert_eq!(parse_age("1y").unwrap(), Duration::from_secs(365 * 24 * 60 * 60));
+    assert_eq!(
+      parse_age("30d").unwrap(),
+      Duration::from_secs(30 * 24 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("12h ago").unwrap(),
+      Duration::from_secs(12 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("2w").unwrap(),
+      Duration::from_secs(2 * 7 * 24 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("1y").unwrap(),
+      Duration::from_secs(365 * 24 * 60 * 60)
+    );
   }
 
   #[test]

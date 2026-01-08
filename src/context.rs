@@ -8,54 +8,6 @@ pub(crate) struct Context {
   pub(crate) root: PathBuf,
 }
 
-const ACTIVITY_IGNORED_DIRECTORIES: &[&str] = &[
-  ".angular",
-  ".build",
-  ".dart_tool",
-  ".elixir-tools",
-  ".elixir_ls",
-  ".git",
-  ".godot",
-  ".gradle",
-  ".ipynb_checkpoints",
-  ".lexical",
-  ".mypy_cache",
-  ".nox",
-  ".pixi",
-  ".pytest_cache",
-  ".ruff_cache",
-  ".stack-work",
-  ".swiftpm",
-  ".tox",
-  ".turbo",
-  ".venv",
-  ".zig-cache",
-  "__pycache__",
-  "__pypackages__",
-  "_build",
-  "Binaries",
-  "Build",
-  "Builds",
-  "DerivedDataCache",
-  "Library",
-  "Logs",
-  "MemoryCaptures",
-  "Obj",
-  "Saved",
-  "Temp",
-  "bin",
-  "build",
-  "cmake-build-debug",
-  "cmake-build-release",
-  "dist-newstyle",
-  "node_modules",
-  "obj",
-  "target",
-  "vendor",
-  "zig-cache",
-  "zig-out",
-];
-
 impl Context {
   pub(crate) fn contains(&self, pattern: &str) -> bool {
     let matcher = match Glob::new(pattern) {
@@ -133,54 +85,6 @@ impl Context {
 
   pub(crate) fn modified_time(&self) -> Result<SystemTime> {
     Ok(fs::metadata(&self.root)?.modified()?)
-  }
-
-  fn is_activity_ignored(entry: &walkdir::DirEntry) -> bool {
-    if entry.depth() == 0 || !entry.file_type().is_dir() {
-      return false;
-    }
-
-    entry
-      .file_name()
-      .to_str()
-      .map(|name| ACTIVITY_IGNORED_DIRECTORIES.contains(&name))
-      .unwrap_or(false)
-  }
-
-  pub(crate) fn activity_modified_time(&self) -> Result<SystemTime> {
-    let mut newest = SystemTime::UNIX_EPOCH;
-
-    for entry in WalkDir::new(&self.root)
-      .follow_links(self.follow_symlinks)
-      .into_iter()
-      .filter_entry(|entry| !Self::is_activity_ignored(entry))
-    {
-      let entry = entry?;
-
-      if !entry.file_type().is_file() {
-        continue;
-      }
-
-      let metadata = if self.follow_symlinks {
-        fs::metadata(entry.path())
-      } else {
-        fs::symlink_metadata(entry.path())
-      };
-
-      let Ok(metadata) = metadata else { continue; };
-
-      let Ok(modified) = metadata.modified() else { continue; };
-
-      if modified > newest {
-        newest = modified;
-      }
-    }
-
-    if newest == SystemTime::UNIX_EPOCH {
-      return Ok(fs::metadata(&self.root)?.modified()?);
-    }
-
-    Ok(newest)
   }
 
   pub(crate) fn new(root: PathBuf, follow_symlinks: bool) -> Result<Self> {
@@ -359,36 +263,5 @@ mod tests {
         PathBuf::from("target"),
       ],
     );
-  }
-
-  #[test]
-  fn activity_modified_time_skips_junk_directories() {
-    let tree = temptree! {
-      ".git": {
-        "HEAD": "ref: refs/heads/main",
-      },
-      "node_modules": {
-        "left-pad": {
-          "index.js": "x",
-        },
-      },
-      "src": {
-        "main.rs": "fn main() {}",
-      },
-    };
-
-    let src = tree.path().join("src/main.rs");
-
-    std::thread::sleep(Duration::from_millis(10));
-
-    fs::write(&src, "fn main() { println!(\"hi\"); }").unwrap();
-
-    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
-
-    let activity = context.activity_modified_time().unwrap();
-
-    let src_modified = fs::metadata(src).unwrap().modified().unwrap();
-
-    assert_eq!(activity, src_modified);
   }
 }
