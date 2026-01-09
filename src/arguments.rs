@@ -39,40 +39,36 @@ pub(crate) struct Arguments {
   subcommand: Option<Subcommand>,
 }
 
-fn parse_age(value: &str) -> Result<Duration, String> {
+fn parse_age(value: &str) -> Result<Duration> {
   let trimmed = value.trim();
 
   let core = if let Some(prefix) = trimmed.strip_suffix(" ago") {
     prefix
   } else if trimmed.ends_with("ago") {
-    return Err("invalid age: expected a space before `ago`".to_string());
+    bail!("invalid age: expected a space before `ago`");
   } else {
     trimmed
   };
 
-  if core.is_empty() || core.contains(char::is_whitespace) {
-    return Err(
-      "invalid age: expected <amount><unit>[ ago] with no interior spaces"
-        .to_string(),
-    );
-  }
+  ensure!(
+    !core.is_empty() && !core.contains(char::is_whitespace),
+    "invalid age: expected <amount><unit>[ ago] with no interior spaces"
+  );
 
   let (amount_part, unit_part) = core
     .chars()
     .enumerate()
     .find(|(_, ch)| !ch.is_ascii_digit())
     .map(|(idx, _)| core.split_at(idx))
-    .ok_or_else(|| "invalid age: missing unit".to_string())?;
+    .ok_or_else(|| anyhow!("invalid age: missing unit"))?;
 
-  if amount_part.is_empty() {
-    return Err("invalid age: missing amount".to_string());
-  }
+  ensure!(!amount_part.is_empty(), "invalid age: missing amount");
 
-  let amount: u64 = amount_part
-    .parse()
-    .map_err(|_| "invalid age: amount must be an integer".to_string())?;
+  let amount = amount_part
+    .parse::<u64>()
+    .map_err(|_| anyhow!("invalid age: amount must be an integer"))?;
 
-  let base_seconds: u64 = match unit_part {
+  let base_seconds = match unit_part {
     "s" => 1,
     "m" => 60,
     "h" => 60 * 60,
@@ -80,16 +76,12 @@ fn parse_age(value: &str) -> Result<Duration, String> {
     "w" => 60 * 60 * 24 * 7,
     "mo" => 60 * 60 * 24 * 30,
     "y" => 60 * 60 * 24 * 365,
-    _ => {
-      return Err(
-        "invalid age: unit must be one of s, m, h, d, w, mo, y".to_string(),
-      );
-    }
+    _ => bail!("invalid age: unit must be one of s, m, h, d, w, mo, y"),
   };
 
   let seconds = amount
     .checked_mul(base_seconds)
-    .ok_or_else(|| "invalid age: value is too large".to_string())?;
+    .ok_or_else(|| anyhow!("invalid age: value is too large"))?;
 
   Ok(Duration::from_secs(seconds))
 }

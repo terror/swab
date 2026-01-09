@@ -1,9 +1,10 @@
 use {
   anyhow::Error,
   executable_path::executable_path,
+  filetime::FileTime,
   indoc::indoc,
   pretty_assertions::assert_eq,
-  std::{fs, iter::once, process::Command, str},
+  std::{fs, iter::once, process::Command, str, time::SystemTime},
   tempfile::TempDir,
 };
 
@@ -829,4 +830,63 @@ fn file_path_instead_of_directory_error() -> Result {
       "error: the path `[ROOT]/file.txt` is not a valid directory\n",
     )
     .run()
+}
+
+#[test]
+fn age_filter_skips_recent_projects() -> Result {
+  let tempdir = TempDir::with_prefix("swab-age-test")?;
+
+  let old_project = tempdir.path().join("old");
+  fs::create_dir(&old_project)?;
+  fs::write(old_project.join("Cargo.toml"), "")?;
+  fs::create_dir(old_project.join("target"))?;
+  fs::write(old_project.join("target/app"), "old")?;
+
+  let recent_project = tempdir.path().join("recent");
+  fs::create_dir(&recent_project)?;
+  fs::write(recent_project.join("Cargo.toml"), "")?;
+  fs::create_dir(recent_project.join("target"))?;
+  fs::write(recent_project.join("target/app"), "recent")?;
+
+  let sixty_days_ago = SystemTime::now()
+    .duration_since(SystemTime::UNIX_EPOCH)?
+    .as_secs()
+    - (60 * 24 * 60 * 60);
+  let old_mtime = FileTime::from_unix_time(sixty_days_ago.cast_signed(), 0);
+  filetime::set_file_mtime(&old_project, old_mtime)?;
+
+  let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
+  command
+    .env("NO_COLOR", "1")
+    .env("RUST_BACKTRACE", "0")
+    .arg(tempdir.path())
+    .arg("--age")
+    .arg("30d")
+    .arg("--dry-run");
+
+  let output = command.output()?;
+
+  let stdout = str::from_utf8(&output.stdout)?
+    .replace(&tempdir.path().display().to_string(), "[ROOT]")
+    .replace('\\', "/");
+
+  assert!(
+    output.status.success(),
+    "expected success, got stderr: {}",
+    str::from_utf8(&output.stderr)?
+  );
+
+  assert!(stdout.contains("[ROOT]/old"), "old project should match");
+  assert!(
+    !stdout.contains("[ROOT]/recent"),
+    "recent project should be skipped"
+  );
+
+  assert!(old_project.join("target").exists(), "old target exists");
+  assert!(
+    recent_project.join("target").exists(),
+    "recent target exists"
+  );
+
+  Ok(())
 }

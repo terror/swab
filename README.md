@@ -85,7 +85,7 @@ Arguments:
   [DIRECTORIES]...  Directories to scan for projects to clean
 
 Options:
-  --age <EXPR>       Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)
+      --age <EXPR>       Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)
       --dry-run          Enable dry run mode
       --follow-symlinks  Follow symlinks during traversal
   -i, --interactive      Prompt before each task
