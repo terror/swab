@@ -22,6 +22,13 @@ pub(crate) struct Arguments {
   )]
   interactive: bool,
   #[clap(
+    long = "older-than",
+    value_name = "EXPR",
+    value_parser = parse_age,
+    help = "Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)"
+  )]
+  older_than: Option<Duration>,
+  #[clap(
     short,
     long,
     help = "Suppress all output",
@@ -30,6 +37,53 @@ pub(crate) struct Arguments {
   quiet: bool,
   #[clap(subcommand)]
   subcommand: Option<Subcommand>,
+}
+
+fn parse_age(value: &str) -> Result<Duration> {
+  let trimmed = value.trim();
+
+  let core = if let Some(prefix) = trimmed.strip_suffix(" ago") {
+    prefix
+  } else if trimmed.ends_with("ago") {
+    bail!("invalid age: expected a space before `ago`");
+  } else {
+    trimmed
+  };
+
+  ensure!(
+    !core.is_empty() && !core.contains(char::is_whitespace),
+    "invalid age: expected <amount><unit>[ ago] with no interior spaces"
+  );
+
+  let (amount_part, unit_part) = core
+    .chars()
+    .enumerate()
+    .find(|(_, ch)| !ch.is_ascii_digit())
+    .map(|(idx, _)| core.split_at(idx))
+    .ok_or_else(|| anyhow!("invalid age: missing unit"))?;
+
+  ensure!(!amount_part.is_empty(), "invalid age: missing amount");
+
+  let amount = amount_part
+    .parse::<u64>()
+    .map_err(|_| anyhow!("invalid age: amount must be an integer"))?;
+
+  let base_seconds = match unit_part {
+    "s" => 1,
+    "m" => 60,
+    "h" => 60 * 60,
+    "d" => 60 * 60 * 24,
+    "w" => 60 * 60 * 24 * 7,
+    "mo" => 60 * 60 * 24 * 30,
+    "y" => 60 * 60 * 24 * 365,
+    _ => bail!("invalid age: unit must be one of s, m, h, d, w, mo, y"),
+  };
+
+  let seconds = amount
+    .checked_mul(base_seconds)
+    .ok_or_else(|| anyhow!("invalid age: value is too large"))?;
+
+  Ok(Duration::from_secs(seconds))
 }
 
 impl Arguments {
@@ -200,18 +254,36 @@ impl Arguments {
       .map(|directory| Context::new(directory, self.follow_symlinks))
       .collect::<Result<Vec<_>>>()?;
 
+    let age_cutoff = self
+      .older_than
+      .and_then(|age| SystemTime::now().checked_sub(age))
+      .unwrap_or(SystemTime::UNIX_EPOCH);
+
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
       |totals @ (total_bytes, total_projects), context| {
-        self
-          .process_context(&context, &rules)
-          .map(|(bytes, should_count)| {
-            if should_count {
-              (total_bytes + bytes, total_projects + 1)
-            } else {
-              totals
-            }
+        let is_eligible = self
+          .older_than
+          .map(|_| {
+            let modified = context.modified_time()?;
+            Ok::<_, anyhow::Error>(modified <= age_cutoff)
           })
+          .transpose()?
+          .unwrap_or(true);
+
+        if is_eligible {
+          self
+            .process_context(&context, &rules)
+            .map(|(bytes, should_count)| {
+              if should_count {
+                (total_bytes + bytes, total_projects + 1)
+              } else {
+                totals
+              }
+            })
+        } else {
+          Ok(totals)
+        }
       },
     )?;
 
@@ -240,5 +312,33 @@ mod tests {
       result,
       Err(error) if error.kind() == ErrorKind::ArgumentConflict
     ));
+  }
+
+  #[test]
+  fn parse_age_accepts_valid_inputs() {
+    assert_eq!(
+      parse_age("30d").unwrap(),
+      Duration::from_secs(30 * 24 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("12h ago").unwrap(),
+      Duration::from_secs(12 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("2w").unwrap(),
+      Duration::from_secs(2 * 7 * 24 * 60 * 60)
+    );
+    assert_eq!(
+      parse_age("1y").unwrap(),
+      Duration::from_secs(365 * 24 * 60 * 60)
+    );
+  }
+
+  #[test]
+  fn parse_age_rejects_invalid_inputs() {
+    assert!(parse_age("3x").is_err());
+    assert!(parse_age("ago").is_err());
+    assert!(parse_age("30 d").is_err());
+    assert!(parse_age("30dago").is_err());
   }
 }

@@ -1,9 +1,10 @@
 use {
   anyhow::Error,
   executable_path::executable_path,
+  filetime::FileTime,
   indoc::indoc,
   pretty_assertions::assert_eq,
-  std::{fs, iter::once, process::Command, str},
+  std::{fs, iter::once, process::Command, str, time::SystemTime},
   tempfile::TempDir,
 };
 
@@ -18,6 +19,7 @@ struct Test<'a> {
   expected_stderr: String,
   expected_stdout: String,
   files: Vec<(&'a str, &'a str)>,
+  modified_times: Vec<(&'a str, SystemTime)>,
   tempdir: TempDir,
 }
 
@@ -102,6 +104,17 @@ impl<'a> Test<'a> {
     }
   }
 
+  fn modified_time(self, path: &'a str, time: SystemTime) -> Self {
+    Self {
+      modified_times: self
+        .modified_times
+        .into_iter()
+        .chain(once((path, time)))
+        .collect(),
+      ..self
+    }
+  }
+
   fn new() -> Result<Self> {
     Ok(Self {
       arguments: Vec::new(),
@@ -111,6 +124,7 @@ impl<'a> Test<'a> {
       expected_stderr: String::new(),
       expected_stdout: String::new(),
       files: Vec::new(),
+      modified_times: Vec::new(),
       tempdir: TempDir::with_prefix("swab-test")?,
     })
   }
@@ -125,7 +139,11 @@ impl<'a> Test<'a> {
 
       fs::write(&full_path, content)?;
     }
-
+    for (path, time) in &self.modified_times {
+      let full_path = self.tempdir.path().join(path);
+      let file_time = FileTime::from_system_time(*time);
+      filetime::set_file_mtime(&full_path, file_time)?;
+    }
     let output = self.command()?.output()?;
 
     let stderr = str::from_utf8(&output.stderr)?
@@ -828,5 +846,29 @@ fn file_path_instead_of_directory_error() -> Result {
     .expected_stderr(
       "error: the path `[ROOT]/file.txt` is not a valid directory\n",
     )
+    .run()
+}
+
+#[test]
+fn age_filter_skips_recent_projects() -> Result {
+  let sixty_days_ago =
+    SystemTime::now() - std::time::Duration::from_secs(60 * 24 * 60 * 60);
+
+  Test::new()?
+    .file("old/Cargo.toml", "")
+    .file("old/target/app", "old")
+    .file("recent/Cargo.toml", "")
+    .file("recent/target/app", "recent")
+    .modified_time("old", sixty_days_ago)
+    .argument("--older-than")
+    .argument("30d")
+    .exists(&["old/Cargo.toml", "recent/Cargo.toml", "recent/target/app"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/old Cargo project (60 days ago)
+        └─ target (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
     .run()
 }
