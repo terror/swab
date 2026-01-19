@@ -19,6 +19,7 @@ struct Test<'a> {
   expected_stderr: String,
   expected_stdout: String,
   files: Vec<(&'a str, &'a str)>,
+  modified_times: Vec<(&'a str, SystemTime)>,
   tempdir: TempDir,
 }
 
@@ -103,6 +104,17 @@ impl<'a> Test<'a> {
     }
   }
 
+  fn modified_time(self, path: &'a str, time: SystemTime) -> Self {
+    Self {
+      modified_times: self
+        .modified_times
+        .into_iter()
+        .chain(once((path, time)))
+        .collect(),
+      ..self
+    }
+  }
+
   fn new() -> Result<Self> {
     Ok(Self {
       arguments: Vec::new(),
@@ -112,6 +124,7 @@ impl<'a> Test<'a> {
       expected_stderr: String::new(),
       expected_stdout: String::new(),
       files: Vec::new(),
+      modified_times: Vec::new(),
       tempdir: TempDir::with_prefix("swab-test")?,
     })
   }
@@ -126,7 +139,11 @@ impl<'a> Test<'a> {
 
       fs::write(&full_path, content)?;
     }
-
+    for (path, time) in &self.modified_times {
+      let full_path = self.tempdir.path().join(path);
+      let file_time = FileTime::from_system_time(*time);
+      filetime::set_file_mtime(&full_path, file_time)?;
+    }
     let output = self.command()?.output()?;
 
     let stderr = str::from_utf8(&output.stderr)?
@@ -834,59 +851,24 @@ fn file_path_instead_of_directory_error() -> Result {
 
 #[test]
 fn age_filter_skips_recent_projects() -> Result {
-  let tempdir = TempDir::with_prefix("swab-age-test")?;
+  let sixty_days_ago =
+    SystemTime::now() - std::time::Duration::from_secs(60 * 24 * 60 * 60);
 
-  let old_project = tempdir.path().join("old");
-  fs::create_dir(&old_project)?;
-  fs::write(old_project.join("Cargo.toml"), "")?;
-  fs::create_dir(old_project.join("target"))?;
-  fs::write(old_project.join("target/app"), "old")?;
-
-  let recent_project = tempdir.path().join("recent");
-  fs::create_dir(&recent_project)?;
-  fs::write(recent_project.join("Cargo.toml"), "")?;
-  fs::create_dir(recent_project.join("target"))?;
-  fs::write(recent_project.join("target/app"), "recent")?;
-
-  let sixty_days_ago = SystemTime::now()
-    .duration_since(SystemTime::UNIX_EPOCH)?
-    .as_secs()
-    - (60 * 24 * 60 * 60);
-  let old_mtime = FileTime::from_unix_time(sixty_days_ago.cast_signed(), 0);
-  filetime::set_file_mtime(&old_project, old_mtime)?;
-
-  let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
-  command
-    .env("NO_COLOR", "1")
-    .env("RUST_BACKTRACE", "0")
-    .arg(tempdir.path())
-    .arg("--age")
-    .arg("30d")
-    .arg("--dry-run");
-
-  let output = command.output()?;
-
-  let stdout = str::from_utf8(&output.stdout)?
-    .replace(&tempdir.path().display().to_string(), "[ROOT]")
-    .replace('\\', "/");
-
-  assert!(
-    output.status.success(),
-    "expected success, got stderr: {}",
-    str::from_utf8(&output.stderr)?
-  );
-
-  assert!(stdout.contains("[ROOT]/old"), "old project should match");
-  assert!(
-    !stdout.contains("[ROOT]/recent"),
-    "recent project should be skipped"
-  );
-
-  assert!(old_project.join("target").exists(), "old target exists");
-  assert!(
-    recent_project.join("target").exists(),
-    "recent target exists"
-  );
-
-  Ok(())
+  Test::new()?
+    .file("old/Cargo.toml", "")
+    .file("old/target/app", "old")
+    .file("recent/Cargo.toml", "")
+    .file("recent/target/app", "recent")
+    .modified_time("old", sixty_days_ago)
+    .argument("--older-than")
+    .argument("30d")
+    .exists(&["old/Cargo.toml", "recent/Cargo.toml", "recent/target/app"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/old Cargo project (60 days ago)
+        └─ target (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
 }

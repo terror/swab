@@ -8,13 +8,6 @@ use super::*;
   about = "A configurable project cleaning tool"
 )]
 pub(crate) struct Arguments {
-  #[clap(
-    long,
-    value_name = "EXPR",
-    value_parser = parse_age,
-    help = "Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)"
-  )]
-  age: Option<Duration>,
   #[arg(help = "Directories to scan for projects to clean")]
   directories: Vec<PathBuf>,
   #[clap(long, help = "Enable dry run mode")]
@@ -28,6 +21,13 @@ pub(crate) struct Arguments {
     conflicts_with = "quiet"
   )]
   interactive: bool,
+  #[clap(
+    long = "older-than",
+    value_name = "EXPR",
+    value_parser = parse_age,
+    help = "Only process projects inactive for at least this age (e.g. 30d, 12h, 2w)"
+  )]
+  older_than: Option<Duration>,
   #[clap(
     short,
     long,
@@ -255,30 +255,35 @@ impl Arguments {
       .collect::<Result<Vec<_>>>()?;
 
     let age_cutoff = self
-      .age
+      .older_than
       .and_then(|age| SystemTime::now().checked_sub(age))
       .unwrap_or(SystemTime::UNIX_EPOCH);
 
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
       |totals @ (total_bytes, total_projects), context| {
-        if self.age.is_some() {
-          let modified = context.modified_time()?;
-
-          if modified > age_cutoff {
-            return Ok(totals);
-          }
-        }
-
-        self
-          .process_context(&context, &rules)
-          .map(|(bytes, should_count)| {
-            if should_count {
-              (total_bytes + bytes, total_projects + 1)
-            } else {
-              totals
-            }
+        let is_eligible = self
+          .older_than
+          .map(|_| {
+            let modified = context.modified_time()?;
+            Ok::<_, anyhow::Error>(modified <= age_cutoff)
           })
+          .transpose()?
+          .unwrap_or(true);
+
+        if is_eligible {
+          self
+            .process_context(&context, &rules)
+            .map(|(bytes, should_count)| {
+              if should_count {
+                (total_bytes + bytes, total_projects + 1)
+              } else {
+                totals
+              }
+            })
+        } else {
+          Ok(totals)
+        }
       },
     )?;
 
