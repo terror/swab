@@ -1,9 +1,12 @@
 use {
   anyhow::Error,
   executable_path::executable_path,
+  filetime::{self, FileTime},
   indoc::indoc,
   pretty_assertions::assert_eq,
-  std::{fs, iter::once, process::Command, str},
+  std::{
+    fs, iter::once, process::Command, str, time::Duration, time::SystemTime,
+  },
   tempfile::TempDir,
 };
 
@@ -11,6 +14,7 @@ type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 struct Test<'a> {
+  age: Option<Duration>,
   arguments: Vec<String>,
   directory: Option<String>,
   exists: Vec<&'a str>,
@@ -22,6 +26,13 @@ struct Test<'a> {
 }
 
 impl<'a> Test<'a> {
+  fn age(self, age: Duration) -> Self {
+    Self {
+      age: Some(age),
+      ..self
+    }
+  }
+
   fn argument(self, argument: &str) -> Self {
     Self {
       arguments: self
@@ -104,6 +115,7 @@ impl<'a> Test<'a> {
 
   fn new() -> Result<Self> {
     Ok(Self {
+      age: None,
       arguments: Vec::new(),
       directory: None,
       exists: Vec::new(),
@@ -124,6 +136,22 @@ impl<'a> Test<'a> {
       }
 
       fs::write(&full_path, content)?;
+    }
+
+    if let Some(age) = self.age {
+      let mtime = FileTime::from_system_time(SystemTime::now() - age);
+
+      for (path, _) in &self.files {
+        let full_path = self.tempdir.path().join(path);
+
+        filetime::set_file_mtime(&full_path, mtime)?;
+
+        if let Some(parent) = full_path.parent() {
+          filetime::set_file_mtime(parent, mtime)?;
+        }
+      }
+
+      filetime::set_file_mtime(self.tempdir.path(), mtime)?;
     }
 
     let output = self.command()?.output()?;
@@ -802,6 +830,63 @@ fn multiple_projects_same_rule() -> Result {
       [ROOT]/shared Node project (0 seconds ago)
         └─ node_modules (300 bytes)
       Projects cleaned: 3, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_filters_recent_projects() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml", "project/target/debug/app"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      Projects cleaned: 0, Bytes deleted: 0 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_includes_old_projects() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .age(Duration::from_secs(60 * 60 * 24 * 30))
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cargo project (30 days ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_with_ago_suffix() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("1w ago")
+    .age(Duration::from_secs(60 * 60 * 24 * 14))
+    .file("project/package.json", "")
+    .file("project/node_modules/foo/index.js", &"a".repeat(500))
+    .exists(&["project/package.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Node project (14 days ago)
+        └─ node_modules (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 500 bytes
       "
     })
     .run()
