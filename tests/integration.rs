@@ -4,7 +4,9 @@ use {
   filetime::{self, FileTime},
   indoc::indoc,
   pretty_assertions::assert_eq,
-  std::{fs, iter::once, process::Command, str, time::Duration},
+  std::{
+    fs, iter::once, process::Command, str, time::Duration, time::SystemTime,
+  },
   tempfile::TempDir,
 };
 
@@ -137,11 +139,11 @@ impl<'a> Test<'a> {
     }
 
     if let Some(age) = self.age {
-      let mtime =
-        FileTime::from_system_time(std::time::SystemTime::now() - age);
+      let mtime = FileTime::from_system_time(SystemTime::now() - age);
 
       for (path, _) in &self.files {
         let full_path = self.tempdir.path().join(path);
+
         filetime::set_file_mtime(&full_path, mtime)?;
 
         if let Some(parent) = full_path.parent() {
