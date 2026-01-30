@@ -21,6 +21,8 @@ pub(crate) struct Arguments {
     conflicts_with = "quiet"
   )]
   interactive: bool,
+  #[clap(long, help = "Only clean projects older than the specified age")]
+  older_than: Option<Age>,
   #[clap(
     short,
     long,
@@ -199,6 +201,20 @@ impl Arguments {
       .into_iter()
       .map(|directory| Context::new(directory, self.follow_symlinks))
       .collect::<Result<Vec<_>>>()?;
+
+    let contexts = contexts
+      .into_iter()
+      .filter(|context| {
+        let Some(age) = &self.older_than else {
+          return true;
+        };
+
+        context
+          .modified_time()
+          .map(|modified| age.older_than(modified))
+          .unwrap_or(false)
+      })
+      .collect::<Vec<_>>();
 
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
