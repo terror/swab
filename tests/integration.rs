@@ -836,30 +836,6 @@ fn multiple_projects_same_rule() -> Result {
 }
 
 #[test]
-fn invalid_path_error() -> Result {
-  Test::new()?
-    .directory("nonexistent")
-    .expected_status(1)
-    .expected_stderr(
-      "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
-    )
-    .run()
-}
-
-#[test]
-fn file_path_instead_of_directory_error() -> Result {
-  Test::new()?
-    .directory("file.txt")
-    .file("file.txt", "content")
-    .exists(&["file.txt"])
-    .expected_status(1)
-    .expected_stderr(
-      "error: the path `[ROOT]/file.txt` is not a valid directory\n",
-    )
-    .run()
-}
-
-#[test]
 fn older_than_filters_recent_projects() -> Result {
   Test::new()?
     .argument("--older-than")
@@ -913,5 +889,29 @@ fn older_than_with_ago_suffix() -> Result {
       Projects cleaned: 1, Bytes deleted: 500 bytes
       "
     })
+    .run()
+}
+
+#[test]
+fn invalid_path_error() -> Result {
+  Test::new()?
+    .directory("nonexistent")
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
+    )
+    .run()
+}
+
+#[test]
+fn file_path_instead_of_directory_error() -> Result {
+  Test::new()?
+    .directory("file.txt")
+    .file("file.txt", "content")
+    .exists(&["file.txt"])
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/file.txt` is not a valid directory\n",
+    )
     .run()
 }
