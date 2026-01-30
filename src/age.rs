@@ -66,11 +66,11 @@ mod tests {
     case("1h", 3600);
     case("2h", 7200);
     case("1d", 86400);
-    case("7d", 604800);
-    case("1w", 604800);
-    case("2w", 1209600);
-    case("1mo", 2592000);
-    case("1y", 31536000);
+    case("7d", 604_800);
+    case("1w", 604_800);
+    case("2w", 1_209_600);
+    case("1mo", 2_592_000);
+    case("1y", 31_536_000);
   }
 
   #[test]
@@ -85,7 +85,7 @@ mod tests {
 
     case("1d ago", 86400);
     case("1dago", 86400);
-    case("  5d ago  ", 432000);
+    case("  5d ago  ", 432_000);
   }
 
   #[test]
