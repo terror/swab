@@ -21,7 +21,11 @@ pub(crate) struct Arguments {
     conflicts_with = "quiet"
   )]
   interactive: bool,
-  #[clap(long, help = "Only clean projects older than the specified age")]
+  #[clap(
+    long,
+    value_name = "AGE",
+    help = "Only clean projects older than the specified age (e.g., 30d, 2w, 1mo)"
+  )]
   older_than: Option<Age>,
   #[clap(
     short,
