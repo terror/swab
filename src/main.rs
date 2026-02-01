@@ -5,7 +5,7 @@ use {
   arguments::Arguments,
   bytes::Bytes,
   clap::Parser,
-  config::Config,
+  config::{Config, ConfigAction, ConfigDetection},
   context::Context,
   detection::Detection,
   dialoguer::{Confirm, theme::ColorfulTheme},

@@ -69,7 +69,7 @@ pub(crate) fn run() -> Result {
 
   let mut default_rules = Config::default_rules().collect::<Vec<_>>();
 
-  default_rules.sort_by_key(|rule| rule.id());
+  default_rules.sort_by(|a, b| a.id().cmp(b.id()));
 
   for rule in &default_rules {
     let id = rule.id();
@@ -85,10 +85,7 @@ pub(crate) fn run() -> Result {
     print_builtin_rule(style, *rule, source);
   }
 
-  let default_ids = default_rules
-    .iter()
-    .map(|rule| rule.id())
-    .collect::<HashSet<_>>();
+  let default_ids = default_rules.iter().map(Rule::id).collect::<HashSet<_>>();
 
   let mut new_custom_rules = config
     .rules

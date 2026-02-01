@@ -19,6 +19,37 @@ impl Display for Detection {
   }
 }
 
+impl TryFrom<ConfigDetection> for Detection {
+  type Error = Error;
+
+  fn try_from(value: ConfigDetection) -> Result<Self> {
+    match value {
+      ConfigDetection::Pattern(pattern)
+      | ConfigDetection::PatternMap { pattern } => {
+        ensure!(
+          !pattern.trim().is_empty(),
+          "detection pattern cannot be empty"
+        );
+
+        Glob::new(&pattern).map_err(|error| {
+          anyhow!("invalid detection pattern `{pattern}`: {error}")
+        })?;
+
+        Ok(Detection::Pattern(Box::leak(pattern.into_boxed_str())))
+      }
+      ConfigDetection::Any { any } => {
+        ConfigDetection::fold(any, Detection::Any, "any")
+      }
+      ConfigDetection::All { all } => {
+        ConfigDetection::fold(all, Detection::All, "all")
+      }
+      ConfigDetection::Not { not } => {
+        Ok(Detection::Not(Box::new((*not).try_into()?)))
+      }
+    }
+  }
+}
+
 impl Detection {
   pub(crate) fn matches(&self, context: &Context) -> bool {
     match self {
