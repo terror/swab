@@ -85,13 +85,13 @@ Arguments:
   [DIRECTORIES]...  Directories to scan for projects to clean
 
 Options:
-      --dry-run                  Enable dry run mode
-      --follow-symlinks          Follow symlinks during traversal
-  -i, --interactive              Prompt before each task
-      --older-than <OLDER_THAN>  Only clean projects older than the specified age
-  -q, --quiet                    Suppress all output
-  -h, --help                     Print help
-  -V, --version                  Print version
+      --dry-run           Enable dry run mode
+      --follow-symlinks   Follow symlinks during traversal
+  -i, --interactive       Prompt before each task
+      --older-than <AGE>  Only clean projects older than the specified age (e.g., 30d, 2w, 1mo)
+  -q, --quiet             Suppress all output
+  -h, --help              Print help
+  -V, --version           Print version
 ```
 
 ## Configuration
