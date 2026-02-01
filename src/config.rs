@@ -58,39 +58,8 @@ impl Display for ConfigDetection {
   }
 }
 
-impl TryFrom<ConfigDetection> for Detection {
-  type Error = Error;
-
-  fn try_from(value: ConfigDetection) -> Result<Self> {
-    match value {
-      ConfigDetection::Pattern(pattern)
-      | ConfigDetection::PatternMap { pattern } => {
-        ensure!(
-          !pattern.trim().is_empty(),
-          "detection pattern cannot be empty"
-        );
-
-        Glob::new(&pattern).map_err(|error| {
-          anyhow!("invalid detection pattern `{pattern}`: {error}")
-        })?;
-
-        Ok(Detection::Pattern(Box::leak(pattern.into_boxed_str())))
-      }
-      ConfigDetection::Any { any } => {
-        ConfigDetection::fold(any, Detection::Any, "any")
-      }
-      ConfigDetection::All { all } => {
-        ConfigDetection::fold(all, Detection::All, "all")
-      }
-      ConfigDetection::Not { not } => {
-        Ok(Detection::Not(Box::new((*not).try_into()?)))
-      }
-    }
-  }
-}
-
 impl ConfigDetection {
-  fn fold(
+  pub(crate) fn fold(
     items: Vec<ConfigDetection>,
     combine: fn(Box<Detection>, Box<Detection>) -> Detection,
     label: &str,
@@ -124,48 +93,6 @@ impl Display for ConfigAction {
       Self::Command { command } => write!(f, "run `{command}`"),
       Self::Remove { remove } => write!(f, "remove {remove}"),
     }
-  }
-}
-
-impl TryFrom<ConfigAction> for Action {
-  type Error = Error;
-
-  fn try_from(value: ConfigAction) -> Result<Self> {
-    match value {
-      ConfigAction::Remove { remove } => {
-        ensure!(!remove.trim().is_empty(), "remove action cannot be empty");
-
-        Glob::new(&remove).map_err(|error| {
-          anyhow!("invalid remove pattern `{remove}`: {error}")
-        })?;
-
-        Ok(Action::Remove(Box::leak(remove.into_boxed_str())))
-      }
-      ConfigAction::Command { command } => {
-        ensure!(!command.trim().is_empty(), "command action cannot be empty");
-        Ok(Action::Command(Box::leak(command.into_boxed_str())))
-      }
-    }
-  }
-}
-
-struct StaticRule(&'static (dyn Rule + Sync));
-
-impl Rule for StaticRule {
-  fn actions(&self) -> &[Action] {
-    self.0.actions()
-  }
-
-  fn detection(&self) -> Detection {
-    self.0.detection()
-  }
-
-  fn id(&self) -> &str {
-    self.0.id()
-  }
-
-  fn name(&self) -> &str {
-    self.0.name()
   }
 }
 
@@ -265,7 +192,7 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
           return None;
         }
 
-        Some(Box::new(StaticRule(default)) as Box<dyn Rule>)
+        Some(Box::new(default) as Box<dyn Rule>)
       })
       .collect::<Vec<Box<dyn Rule>>>();
 

@@ -3,16 +3,6 @@ use super::*;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Age(pub(crate) Duration);
 
-impl Age {
-  pub(crate) fn older_than(&self, modified: SystemTime) -> bool {
-    let Ok(elapsed) = modified.elapsed() else {
-      return false;
-    };
-
-    elapsed > self.0
-  }
-}
-
 impl FromStr for Age {
   type Err = Error;
 
@@ -42,6 +32,16 @@ impl FromStr for Age {
     };
 
     Ok(Age(Duration::from_secs(amount * seconds)))
+  }
+}
+
+impl Age {
+  pub(crate) fn older_than(&self, modified: SystemTime) -> bool {
+    let Ok(elapsed) = modified.elapsed() else {
+      return false;
+    };
+
+    elapsed > self.0
   }
 }
 

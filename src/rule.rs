@@ -73,3 +73,21 @@ pub(crate) trait Rule: Sync {
   /// A human-readable name for the rule.
   fn name(&self) -> &str;
 }
+
+impl<T: Rule + ?Sized> Rule for &T {
+  fn actions(&self) -> &[Action] {
+    (**self).actions()
+  }
+
+  fn detection(&self) -> Detection {
+    (**self).detection()
+  }
+
+  fn id(&self) -> &str {
+    (**self).id()
+  }
+
+  fn name(&self) -> &str {
+    (**self).name()
+  }
+}
