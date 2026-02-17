@@ -5,4 +5,4 @@ edition = "2024"
 publish = false
 
 [dependencies]
-regex = "1.12.2"
+regex = "1.12.3"
