@@ -45,7 +45,7 @@ wildcard_imports = "allow"
 
 [dependencies]
 anyhow = "1.0.102"
-clap = { version = "4.6.0", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 confy = "2.0.0"
 dialoguer = "0.12.0"
 globset = "0.4.18"
