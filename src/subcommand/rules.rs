@@ -21,7 +21,7 @@ fn print_builtin_rule(style: Style, rule: &dyn Rule, source: RuleSource) {
     status,
   );
 
-  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection(),);
+  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection());
 
   println!("  {}:", style.apply(CYAN, "actions"));
 
@@ -40,7 +40,7 @@ fn print_custom_rule(style: Style, rule: &config::RuleConfig) {
     style.apply(YELLOW, "custom"),
   );
 
-  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection,);
+  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection);
 
   println!("  {}:", style.apply(CYAN, "actions"));
 

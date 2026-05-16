@@ -857,7 +857,7 @@ fn older_than_includes_old_projects() -> Result {
   Test::new()?
     .argument("--older-than")
     .argument("7d")
-    .age(Duration::from_secs(60 * 60 * 24 * 30))
+    .age(Duration::from_hours(720))
     .file("project/Cargo.toml", "")
     .file("project/target/debug/app", &"a".repeat(1000))
     .exists(&["project/Cargo.toml"])
@@ -877,7 +877,7 @@ fn older_than_with_ago_suffix() -> Result {
   Test::new()?
     .argument("--older-than")
     .argument("1w ago")
-    .age(Duration::from_secs(60 * 60 * 24 * 14))
+    .age(Duration::from_hours(336))
     .file("project/package.json", "")
     .file("project/node_modules/foo/index.js", &"a".repeat(500))
     .exists(&["project/package.json"])

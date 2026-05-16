@@ -17,10 +17,7 @@ impl PathExt for Path {
       let is_dir = if follow_symlinks {
         path.is_dir()
       } else {
-        entry
-          .file_type()
-          .map(|file_type| file_type.is_dir())
-          .unwrap_or(false)
+        entry.file_type().is_ok_and(|file_type| file_type.is_dir())
       };
 
       if is_dir {

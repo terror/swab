@@ -215,8 +215,7 @@ impl Arguments {
 
         context
           .modified_time()
-          .map(|modified| age.older_than(modified))
-          .unwrap_or(false)
+          .is_ok_and(|modified| age.older_than(modified))
       })
       .collect::<Vec<_>>();
 

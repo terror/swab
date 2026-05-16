@@ -62,57 +62,48 @@ mod tests {
 
   #[test]
   fn format_one_minute() {
-    assert_eq!(ago(Duration::from_secs(60)).format(), "1 minute ago");
+    assert_eq!(ago(Duration::from_mins(1)).format(), "1 minute ago");
   }
 
   #[test]
   fn format_multiple_minutes() {
-    assert_eq!(ago(Duration::from_secs(5 * 60)).format(), "5 minutes ago");
+    assert_eq!(ago(Duration::from_mins(5)).format(), "5 minutes ago");
   }
 
   #[test]
   fn format_59_minutes() {
-    assert_eq!(ago(Duration::from_secs(59 * 60)).format(), "59 minutes ago");
+    assert_eq!(ago(Duration::from_mins(59)).format(), "59 minutes ago");
   }
 
   #[test]
   fn format_one_hour() {
-    assert_eq!(ago(Duration::from_secs(60 * 60)).format(), "1 hour ago");
+    assert_eq!(ago(Duration::from_hours(1)).format(), "1 hour ago");
   }
 
   #[test]
   fn format_multiple_hours() {
-    assert_eq!(
-      ago(Duration::from_secs(12 * 60 * 60)).format(),
-      "12 hours ago"
-    );
+    assert_eq!(ago(Duration::from_hours(12)).format(), "12 hours ago");
   }
 
   #[test]
   fn format_23_hours() {
-    assert_eq!(
-      ago(Duration::from_secs(23 * 60 * 60)).format(),
-      "23 hours ago"
-    );
+    assert_eq!(ago(Duration::from_hours(23)).format(), "23 hours ago");
   }
 
   #[test]
   fn format_one_day() {
-    assert_eq!(ago(Duration::from_secs(24 * 60 * 60)).format(), "1 day ago");
+    assert_eq!(ago(Duration::from_hours(24)).format(), "1 day ago");
   }
 
   #[test]
   fn format_multiple_days() {
-    assert_eq!(
-      ago(Duration::from_secs(7 * 24 * 60 * 60)).format(),
-      "7 days ago"
-    );
+    assert_eq!(ago(Duration::from_hours(168)).format(), "7 days ago");
   }
 
   #[test]
   fn format_future_time_returns_zero() {
     assert_eq!(
-      (SystemTime::now() + Duration::from_secs(60)).format(),
+      (SystemTime::now() + Duration::from_mins(1)).format(),
       "0 seconds ago"
     );
   }
