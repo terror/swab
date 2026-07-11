@@ -50,6 +50,10 @@ impl<'a> Test<'a> {
     command
       .env("NO_COLOR", "1")
       .env("RUST_BACKTRACE", "0")
+      .env("APPDATA", self.tempdir.path())
+      .env("HOME", self.tempdir.path())
+      .env("LOCALAPPDATA", self.tempdir.path())
+      .env("XDG_CONFIG_HOME", self.tempdir.path())
       .current_dir(&self.tempdir);
 
     if let Some(dir) = &self.directory {
