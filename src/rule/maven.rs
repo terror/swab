@@ -6,7 +6,7 @@ define_rule! {
     name: "Maven",
     detection: Detection::Pattern("pom.xml"),
     actions: [
-      Action::Remove("target"),
+      Action::Remove("**/target"),
     ],
   }
 }
