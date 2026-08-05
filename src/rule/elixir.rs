@@ -10,6 +10,7 @@ define_rule! {
       Action::Remove(".elixir-tools"),
       Action::Remove(".elixir_ls"),
       Action::Remove(".lexical"),
+      Action::Remove("deps"),
     ],
   }
 }
