@@ -49,6 +49,7 @@ mod gradle;
 mod jupyter;
 mod maven;
 mod node;
+mod nx;
 mod pixi;
 mod pub_;
 mod python;

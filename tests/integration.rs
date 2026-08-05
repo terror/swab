@@ -408,6 +408,26 @@ fn node_removes_angular_cache() -> Result {
 }
 
 #[test]
+fn nx_removes_cache_and_workspace_data() -> Result {
+  Test::new()?
+    .file("project/nx.json", "")
+    .file("project/.nx/cache/foo", &"a".repeat(1000))
+    .file("project/.nx/workspace-data/bar", &"b".repeat(500))
+    .file("project/.nx/foo/bar", "baz")
+    .exists(&["project/nx.json", "project/.nx/foo/bar"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Nx project (0 seconds ago)
+        ├─ .nx/cache (1000 bytes)
+        └─ .nx/workspace-data (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn python_removes_cache_directories() -> Result {
   Test::new()?
     .file("project/pyproject.toml", "")
