@@ -667,24 +667,61 @@ fn pub_removes_build_directories() -> Result {
     .file("project/pubspec.yaml", "")
     .file("project/build/app.dill", &"a".repeat(1000))
     .file("project/.dart_tool/package_config.json", &"b".repeat(500))
+    .file("project/.android/app/build.gradle", &"c".repeat(100))
+    .file("project/.flutter-plugins-dependencies", &"d".repeat(100))
+    .file(
+      "project/.ios/Runner.xcodeproj/project.pbxproj",
+      &"e".repeat(100),
+    )
+    .file("project/ios/Flutter/App.framework/App", &"f".repeat(100))
+    .file(
+      "project/ios/Flutter/Flutter.framework/Flutter",
+      &"g".repeat(100),
+    )
+    .file("project/ios/Flutter/Flutter.podspec", &"h".repeat(100))
+    .file("project/ios/Flutter/Generated.xcconfig", &"i".repeat(100))
+    .file("project/ios/Flutter/ephemeral/foo", &"j".repeat(100))
+    .file(
+      "project/ios/Flutter/flutter_export_environment.sh",
+      &"k".repeat(100),
+    )
     .file(
       "project/linux/flutter/ephemeral/libflutter.so",
-      &"c".repeat(300),
+      &"l".repeat(300),
     )
+    .file("project/macos/Flutter/ephemeral/foo", &"m".repeat(100))
     .file(
       "project/windows/flutter/ephemeral/flutter.dll",
-      &"d".repeat(200),
+      &"n".repeat(200),
     )
-    .exists(&["project/pubspec.yaml"])
+    .file("project/android/app/build.gradle", "")
+    .file("project/ios/Runner/AppDelegate.swift", "")
+    .file("project/macos/Runner/AppDelegate.swift", "")
+    .exists(&[
+      "project/pubspec.yaml",
+      "project/android/app/build.gradle",
+      "project/ios/Runner/AppDelegate.swift",
+      "project/macos/Runner/AppDelegate.swift",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Pub (Dart/Flutter) project (0 seconds ago)
+        ├─ .android (100 bytes)
         ├─ .dart_tool (500 bytes)
+        ├─ .flutter-plugins-dependencies (100 bytes)
+        ├─ .ios (100 bytes)
         ├─ build (1000 bytes)
+        ├─ ios/Flutter/App.framework (100 bytes)
+        ├─ ios/Flutter/Flutter.framework (100 bytes)
+        ├─ ios/Flutter/Flutter.podspec (100 bytes)
+        ├─ ios/Flutter/Generated.xcconfig (100 bytes)
+        ├─ ios/Flutter/ephemeral (100 bytes)
+        ├─ ios/Flutter/flutter_export_environment.sh (100 bytes)
         ├─ linux/flutter/ephemeral (300 bytes)
+        ├─ macos/Flutter/ephemeral (100 bytes)
         └─ windows/flutter/ephemeral (200 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      Projects cleaned: 1, Bytes deleted: 2.93 KiB
       "
     })
     .run()
