@@ -661,6 +661,31 @@ fn stack_removes_stack_work() -> Result {
 }
 
 #[test]
+fn terragrunt_removes_nested_caches() -> Result {
+  Test::new()?
+    .file("project/terragrunt.hcl", "")
+    .file("project/.terragrunt-cache/foo/data", &"a".repeat(1000))
+    .file("project/foo/terragrunt.hcl", "")
+    .file("project/foo/.terragrunt-cache/bar/data", &"b".repeat(500))
+    .file(
+      "project/foo/bar/.terragrunt-cache/baz/data",
+      &"c".repeat(300),
+    )
+    .exists(&["project/terragrunt.hcl", "project/foo/terragrunt.hcl"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Terragrunt project (0 seconds ago)
+        ├─ .terragrunt-cache (1000 bytes)
+        ├─ foo/.terragrunt-cache (500 bytes)
+        └─ foo/bar/.terragrunt-cache (300 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn turborepo_removes_turbo_directory() -> Result {
   Test::new()?
     .file("project/turbo.json", "")
