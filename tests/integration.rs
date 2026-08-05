@@ -353,6 +353,27 @@ fn gradle_kotlin_dsl() -> Result {
 }
 
 #[test]
+fn gradle_multi_project_builds() -> Result {
+  Test::new()?
+    .file("groovy/settings.gradle", "")
+    .file("groovy/app/build/classes/main/App.class", &"a".repeat(1000))
+    .file("kotlin/settings.gradle.kts", "")
+    .file("kotlin/lib/build/classes/main/Lib.class", &"b".repeat(500))
+    .exists(&["groovy/settings.gradle", "kotlin/settings.gradle.kts"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/groovy Gradle project (0 seconds ago)
+        └─ app/build (1000 bytes)
+      [ROOT]/kotlin Gradle project (0 seconds ago)
+        └─ lib/build (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn maven_removes_target() -> Result {
   Test::new()?
     .file("project/pom.xml", "")
