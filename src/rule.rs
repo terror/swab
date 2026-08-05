@@ -52,6 +52,7 @@ mod node;
 mod pixi;
 mod pub_;
 mod python;
+mod rebar3;
 mod sbt;
 mod stack;
 mod swift;
