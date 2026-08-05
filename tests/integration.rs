@@ -785,6 +785,26 @@ fn pub_removes_build_directories() -> Result {
 }
 
 #[test]
+fn rebar3_removes_build_directory() -> Result {
+  Test::new()?
+    .file("project/rebar.config", "")
+    .file(
+      "project/_build/default/lib/foo/ebin/foo.beam",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/rebar.config"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Rebar3 (Erlang) project (0 seconds ago)
+        └─ _build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn sbt_removes_target_directories() -> Result {
   Test::new()?
     .file("project/build.sbt", "")
