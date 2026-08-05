@@ -6,7 +6,7 @@ define_rule! {
     name: "Terraform",
     detection: Detection::Any(
       Box::new(Detection::Pattern(".terraform.lock.hcl")),
-      Box::new(Detection::Pattern("*.tf")),
+      Box::new(Detection::Pattern(".terraform")),
     ),
     actions: [
       Action::Remove(".terraform"),
