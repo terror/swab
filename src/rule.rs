@@ -55,6 +55,7 @@ mod python;
 mod sbt;
 mod stack;
 mod swift;
+mod terraform;
 mod turborepo;
 mod unity;
 mod unreal;

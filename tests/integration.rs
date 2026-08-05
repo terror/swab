@@ -455,6 +455,36 @@ fn swift_removes_build_directories() -> Result {
 }
 
 #[test]
+fn terraform_removes_generated_directory() -> Result {
+  Test::new()?
+    .file("lock-project/.terraform.lock.hcl", "foo")
+    .file("lock-project/.terraform/providers/provider", "foo")
+    .file("lock-project/terraform.tfstate", "bar")
+    .file("lock-project/terraform.tfstate.backup", "baz")
+    .file("lock-project/saved.tfplan", "qux")
+    .file("tf-project/main.tf", "foo")
+    .file("tf-project/.terraform/modules/modules.json", "bar")
+    .exists(&[
+      "lock-project/.terraform.lock.hcl",
+      "lock-project/terraform.tfstate",
+      "lock-project/terraform.tfstate.backup",
+      "lock-project/saved.tfplan",
+      "tf-project/main.tf",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/lock-project Terraform project (0 seconds ago)
+        └─ .terraform (3 bytes)
+      [ROOT]/tf-project Terraform project (0 seconds ago)
+        └─ .terraform (3 bytes)
+      Projects cleaned: 2, Bytes deleted: 6 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn zig_removes_cache_directories() -> Result {
   Test::new()?
     .file("project/build.zig", "")
