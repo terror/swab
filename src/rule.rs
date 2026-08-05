@@ -57,6 +57,7 @@ mod rebar3;
 mod sbt;
 mod stack;
 mod swift;
+mod terragrunt;
 mod turborepo;
 mod unity;
 mod unreal;
