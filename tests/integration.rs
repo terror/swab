@@ -510,6 +510,29 @@ fn node_removes_angular_cache() -> Result {
 }
 
 #[test]
+fn nextjs_removes_next_directory() -> Result {
+  Test::new()?
+    .file("project/package.json", "{}")
+    .file("project/next.config.ts", "export default {}")
+    .file("project/.next/cache/data", &"a".repeat(1000))
+    .file("project/out/index.html", "bar")
+    .exists(&[
+      "project/package.json",
+      "project/next.config.ts",
+      "project/out/index.html",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Next.js project (0 seconds ago)
+        └─ .next (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn python_removes_cache_directories() -> Result {
   Test::new()?
     .file("project/pyproject.toml", "")
