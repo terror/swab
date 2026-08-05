@@ -43,6 +43,7 @@ mod cargo;
 mod cmake;
 mod composer;
 mod dotnet;
+mod dune;
 mod elixir;
 mod godot;
 mod gradle;
@@ -52,13 +53,16 @@ mod node;
 mod pixi;
 mod pub_;
 mod python;
+mod rebar3;
 mod sbt;
 mod stack;
 mod swift;
 mod terraform;
+mod terragrunt;
 mod turborepo;
 mod unity;
 mod unreal;
+mod vcpkg;
 mod zig;
 
 pub(crate) trait Rule: Sync {

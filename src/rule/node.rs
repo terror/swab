@@ -7,7 +7,7 @@ define_rule! {
     detection: Detection::Pattern("package.json"),
     actions: [
       Action::Remove("**/node_modules"),
-      Action::Remove(".angular"),
+      Action::Remove(".angular/cache"),
     ],
   }
 }
