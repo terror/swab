@@ -275,6 +275,7 @@ fn cargo_removes_nested_target_directories() -> Result {
 #[test]
 fn dotnet_removes_bin_and_obj() -> Result {
   Test::new()?
+    .directory("project")
     .file("project/App.csproj", "")
     .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
     .file("project/obj/Debug/net8.0/App.dll", &"b".repeat(500))
@@ -285,6 +286,56 @@ fn dotnet_removes_bin_and_obj() -> Result {
       [ROOT]/project .NET project (0 seconds ago)
         ├─ bin (1000 bytes)
         └─ obj (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_detects_visual_basic_projects() -> Result {
+  Test::new()?
+    .directory("project")
+    .file("project/App.vbproj", "")
+    .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
+    .exists(&["project/App.vbproj"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_removes_nested_project_outputs() -> Result {
+  Test::new()?
+    .directory("solution")
+    .file("solution/App.sln", "")
+    .file("solution/src/App/App.csproj", "")
+    .file(
+      "solution/src/App/bin/Debug/net8.0/App.dll",
+      &"a".repeat(1000),
+    )
+    .file("solution/tests/App.Tests/App.Tests.fsproj", "")
+    .file(
+      "solution/tests/App.Tests/obj/Debug/net8.0/App.Tests.dll",
+      &"b".repeat(500),
+    )
+    .exists(&[
+      "solution/App.sln",
+      "solution/src/App/App.csproj",
+      "solution/tests/App.Tests/App.Tests.fsproj",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/solution .NET project (0 seconds ago)
+        ├─ src/App/bin (1000 bytes)
+        └─ tests/App.Tests/obj (500 bytes)
       Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
@@ -594,8 +645,14 @@ fn composer_removes_vendor() -> Result {
 fn godot_removes_godot_directory() -> Result {
   Test::new()?
     .file("project/project.godot", "")
+    .file("project/App.csproj", "")
     .file("project/.godot/imported/icon.png", &"a".repeat(1000))
-    .exists(&["project/project.godot"])
+    .file("project/bin/Debug/net8.0/App.dll", "bar")
+    .exists(&[
+      "project/project.godot",
+      "project/App.csproj",
+      "project/bin/Debug/net8.0/App.dll",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
@@ -806,6 +863,7 @@ fn turborepo_configurations_remove_turbo_directory() -> Result {
 fn unity_removes_build_directories() -> Result {
   Test::new()?
     .file("project/Assembly-CSharp.csproj", "")
+    .file("project/bin/Debug/Assembly-CSharp.dll", "bar")
     .file(
       "project/Library/ScriptAssemblies/Assembly-CSharp.dll",
       &"a".repeat(1000),
@@ -816,7 +874,10 @@ fn unity_removes_build_directories() -> Result {
     .file("project/MemoryCaptures/capture.raw", &"e".repeat(100))
     .file("project/Build/game.exe", &"f".repeat(100))
     .file("project/Builds/game.exe", &"g".repeat(100))
-    .exists(&["project/Assembly-CSharp.csproj"])
+    .exists(&[
+      "project/Assembly-CSharp.csproj",
+      "project/bin/Debug/Assembly-CSharp.dll",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
