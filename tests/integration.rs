@@ -587,6 +587,23 @@ fn pixi_removes_pixi_directory() -> Result {
 }
 
 #[test]
+fn pixi_pyproject_removes_pixi_directory() -> Result {
+  Test::new()?
+    .file("project/pyproject.toml", "")
+    .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
+    .exists(&["project/pyproject.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Pixi project (0 seconds ago)
+        └─ .pixi (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn pub_removes_build_directories() -> Result {
   Test::new()?
     .file("project/pubspec.yaml", "")
