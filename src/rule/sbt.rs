@@ -3,11 +3,10 @@ use super::*;
 define_rule! {
   Sbt {
     id: "sbt",
-    name: "SBT (Scala)",
+    name: "sbt (Scala)",
     detection: Detection::Pattern("build.sbt"),
     actions: [
-      Action::Remove("target"),
-      Action::Remove("project/target"),
+      Action::Remove("**/target"),
     ],
   }
 }

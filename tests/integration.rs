@@ -356,17 +356,23 @@ fn gradle_kotlin_dsl() -> Result {
 fn maven_removes_target() -> Result {
   Test::new()?
     .file("project/pom.xml", "")
+    .file("project/module/pom.xml", "")
     .file(
       "project/target/classes/com/example/App.class",
       &"a".repeat(1000),
     )
-    .exists(&["project/pom.xml"])
+    .file(
+      "project/module/target/classes/com/example/Module.class",
+      &"b".repeat(500),
+    )
+    .exists(&["project/pom.xml", "project/module/pom.xml"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Maven project (0 seconds ago)
+        ├─ module/target (500 bytes)
         └─ target (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
     .run()
@@ -627,14 +633,19 @@ fn sbt_removes_target_directories() -> Result {
       "project/project/target/scala-2.12/sbt-1.0/classes/Build.class",
       &"b".repeat(500),
     )
+    .file(
+      "project/module/target/scala-3.3.1/classes/Module.class",
+      &"c".repeat(300),
+    )
     .exists(&["project/build.sbt"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
-      [ROOT]/project SBT (Scala) project (0 seconds ago)
+      [ROOT]/project sbt (Scala) project (0 seconds ago)
+        ├─ module/target (300 bytes)
         ├─ project/target (500 bytes)
         └─ target (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      Projects cleaned: 1, Bytes deleted: 1.76 KiB
       "
     })
     .run()
