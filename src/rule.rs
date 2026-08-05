@@ -43,6 +43,7 @@ mod cargo;
 mod cmake;
 mod composer;
 mod dotnet;
+mod dune;
 mod elixir;
 mod godot;
 mod gradle;

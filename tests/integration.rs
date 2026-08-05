@@ -293,6 +293,27 @@ fn dotnet_removes_bin_and_obj() -> Result {
 }
 
 #[test]
+fn dune_removes_build_directory() -> Result {
+  Test::new()?
+    .file("project/dune-project", "")
+    .file("project/_build/default/bin/main.exe", &"a".repeat(1000))
+    .file("workspace/dune-workspace", "")
+    .file("workspace/_build/default/lib/foo.cma", &"b".repeat(500))
+    .exists(&["project/dune-project", "workspace/dune-workspace"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Dune (OCaml) project (0 seconds ago)
+        └─ _build (1000 bytes)
+      [ROOT]/workspace Dune (OCaml) project (0 seconds ago)
+        └─ _build (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn dotnet_detects_visual_basic_projects() -> Result {
   Test::new()?
     .directory("project")
