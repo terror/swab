@@ -275,6 +275,7 @@ fn cargo_removes_nested_target_directories() -> Result {
 #[test]
 fn dotnet_removes_bin_and_obj() -> Result {
   Test::new()?
+    .directory("project")
     .file("project/App.csproj", "")
     .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
     .file("project/obj/Debug/net8.0/App.dll", &"b".repeat(500))
@@ -313,7 +314,57 @@ fn dune_removes_build_directory() -> Result {
 }
 
 #[test]
-fn elixir_removes_build_directories() -> Result {
+fn dotnet_detects_visual_basic_projects() -> Result {
+  Test::new()?
+    .directory("project")
+    .file("project/App.vbproj", "")
+    .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
+    .exists(&["project/App.vbproj"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_removes_nested_project_outputs() -> Result {
+  Test::new()?
+    .directory("solution")
+    .file("solution/App.sln", "")
+    .file("solution/src/App/App.csproj", "")
+    .file(
+      "solution/src/App/bin/Debug/net8.0/App.dll",
+      &"a".repeat(1000),
+    )
+    .file("solution/tests/App.Tests/App.Tests.fsproj", "")
+    .file(
+      "solution/tests/App.Tests/obj/Debug/net8.0/App.Tests.dll",
+      &"b".repeat(500),
+    )
+    .exists(&[
+      "solution/App.sln",
+      "solution/src/App/App.csproj",
+      "solution/tests/App.Tests/App.Tests.fsproj",
+    ])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/solution .NET project (0 seconds ago)
+        ├─ src/App/bin (1000 bytes)
+        └─ tests/App.Tests/obj (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn elixir_removes_build_and_dependency_directories() -> Result {
   Test::new()?
     .file("project/mix.exs", "")
     .file(
@@ -321,14 +372,16 @@ fn elixir_removes_build_directories() -> Result {
       &"a".repeat(1000),
     )
     .file("project/.elixir_ls/build/dev/lib/app.ex", &"b".repeat(500))
+    .file("project/deps/foo/ebin/foo.beam", &"c".repeat(300))
     .exists(&["project/mix.exs"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Elixir project (0 seconds ago)
         ├─ .elixir_ls (500 bytes)
-        └─ _build (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+        ├─ _build (1000 bytes)
+        └─ deps (300 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.76 KiB
       "
     })
     .run()
@@ -374,20 +427,47 @@ fn gradle_kotlin_dsl() -> Result {
 }
 
 #[test]
+fn gradle_multi_project_builds() -> Result {
+  Test::new()?
+    .file("groovy/settings.gradle", "")
+    .file("groovy/app/build/classes/main/App.class", &"a".repeat(1000))
+    .file("kotlin/settings.gradle.kts", "")
+    .file("kotlin/lib/build/classes/main/Lib.class", &"b".repeat(500))
+    .exists(&["groovy/settings.gradle", "kotlin/settings.gradle.kts"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/groovy Gradle project (0 seconds ago)
+        └─ app/build (1000 bytes)
+      [ROOT]/kotlin Gradle project (0 seconds ago)
+        └─ lib/build (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn maven_removes_target() -> Result {
   Test::new()?
     .file("project/pom.xml", "")
+    .file("project/module/pom.xml", "")
     .file(
       "project/target/classes/com/example/App.class",
       &"a".repeat(1000),
     )
-    .exists(&["project/pom.xml"])
+    .file(
+      "project/module/target/classes/com/example/Module.class",
+      &"b".repeat(500),
+    )
+    .exists(&["project/pom.xml", "project/module/pom.xml"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Maven project (0 seconds ago)
+        ├─ module/target (500 bytes)
         └─ target (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
     .run()
@@ -416,12 +496,13 @@ fn node_removes_angular_cache() -> Result {
   Test::new()?
     .file("project/package.json", "")
     .file("project/.angular/cache/data.json", &"a".repeat(1000))
-    .exists(&["project/package.json"])
+    .file("project/.angular/config.json", "bar")
+    .exists(&["project/package.json", "project/.angular/config.json"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Node project (0 seconds ago)
-        └─ .angular (1000 bytes)
+        └─ .angular/cache (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
@@ -436,7 +517,10 @@ fn python_removes_cache_directories() -> Result {
       "project/.venv/lib/python3.12/site-packages/pip.py",
       &"a".repeat(1000),
     )
-    .file("project/__pycache__/main.cpython-312.pyc", &"b".repeat(500))
+    .file(
+      "project/src/foo/__pycache__/main.cpython-312.pyc",
+      &"b".repeat(500),
+    )
     .file("project/.pytest_cache/v/cache/data", &"c".repeat(200))
     .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
     .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
@@ -449,8 +533,29 @@ fn python_removes_cache_directories() -> Result {
         ├─ .pytest_cache (200 bytes)
         ├─ .ruff_cache (100 bytes)
         ├─ .venv (1000 bytes)
-        └─ __pycache__ (500 bytes)
+        └─ src/foo/__pycache__ (500 bytes)
       Projects cleaned: 1, Bytes deleted: 1.86 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn python_detects_setup_project_files() -> Result {
+  Test::new()?
+    .file("foo/setup.py", "")
+    .file("foo/__pycache__/foo.pyc", &"a".repeat(500))
+    .file("bar/setup.cfg", "")
+    .file("bar/__pycache__/bar.pyc", &"b".repeat(300))
+    .exists(&["foo/setup.py", "bar/setup.cfg"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/bar Python project (0 seconds ago)
+        └─ __pycache__ (300 bytes)
+      [ROOT]/foo Python project (0 seconds ago)
+        └─ __pycache__ (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 800 bytes
       "
     })
     .run()
@@ -502,13 +607,17 @@ fn cabal_removes_dist_newstyle() -> Result {
       "project/dist-newstyle/build/x86_64-linux/ghc-9.4.7/app-0.1.0.0/build/app/app",
       &"a".repeat(1000),
     )
-    .exists(&["project/cabal.project"])
+    .file("standalone/foo.cabal", "")
+    .file("standalone/dist-newstyle/build/foo", &"b".repeat(500))
+    .exists(&["project/cabal.project", "standalone/foo.cabal"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cabal (Haskell) project (0 seconds ago)
         └─ dist-newstyle (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      [ROOT]/standalone Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
       "
     })
     .run()
@@ -557,8 +666,14 @@ fn composer_removes_vendor() -> Result {
 fn godot_removes_godot_directory() -> Result {
   Test::new()?
     .file("project/project.godot", "")
+    .file("project/App.csproj", "")
     .file("project/.godot/imported/icon.png", &"a".repeat(1000))
-    .exists(&["project/project.godot"])
+    .file("project/bin/Debug/net8.0/App.dll", "bar")
+    .exists(&[
+      "project/project.godot",
+      "project/App.csproj",
+      "project/bin/Debug/net8.0/App.dll",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
@@ -608,29 +723,103 @@ fn pixi_removes_pixi_directory() -> Result {
 }
 
 #[test]
+fn pixi_pyproject_removes_pixi_directory() -> Result {
+  Test::new()?
+    .file("project/pyproject.toml", "")
+    .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
+    .exists(&["project/pyproject.toml"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Pixi project (0 seconds ago)
+        └─ .pixi (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn pub_removes_build_directories() -> Result {
   Test::new()?
     .file("project/pubspec.yaml", "")
     .file("project/build/app.dill", &"a".repeat(1000))
     .file("project/.dart_tool/package_config.json", &"b".repeat(500))
+    .file("project/.android/app/build.gradle", &"c".repeat(100))
+    .file("project/.flutter-plugins-dependencies", &"d".repeat(100))
+    .file(
+      "project/.ios/Runner.xcodeproj/project.pbxproj",
+      &"e".repeat(100),
+    )
+    .file("project/ios/Flutter/App.framework/App", &"f".repeat(100))
+    .file(
+      "project/ios/Flutter/Flutter.framework/Flutter",
+      &"g".repeat(100),
+    )
+    .file("project/ios/Flutter/Flutter.podspec", &"h".repeat(100))
+    .file("project/ios/Flutter/Generated.xcconfig", &"i".repeat(100))
+    .file("project/ios/Flutter/ephemeral/foo", &"j".repeat(100))
+    .file(
+      "project/ios/Flutter/flutter_export_environment.sh",
+      &"k".repeat(100),
+    )
     .file(
       "project/linux/flutter/ephemeral/libflutter.so",
-      &"c".repeat(300),
+      &"l".repeat(300),
     )
+    .file("project/macos/Flutter/ephemeral/foo", &"m".repeat(100))
     .file(
       "project/windows/flutter/ephemeral/flutter.dll",
-      &"d".repeat(200),
+      &"n".repeat(200),
     )
-    .exists(&["project/pubspec.yaml"])
+    .file("project/android/app/build.gradle", "")
+    .file("project/ios/Runner/AppDelegate.swift", "")
+    .file("project/macos/Runner/AppDelegate.swift", "")
+    .exists(&[
+      "project/pubspec.yaml",
+      "project/android/app/build.gradle",
+      "project/ios/Runner/AppDelegate.swift",
+      "project/macos/Runner/AppDelegate.swift",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Pub (Dart/Flutter) project (0 seconds ago)
+        ├─ .android (100 bytes)
         ├─ .dart_tool (500 bytes)
+        ├─ .flutter-plugins-dependencies (100 bytes)
+        ├─ .ios (100 bytes)
         ├─ build (1000 bytes)
+        ├─ ios/Flutter/App.framework (100 bytes)
+        ├─ ios/Flutter/Flutter.framework (100 bytes)
+        ├─ ios/Flutter/Flutter.podspec (100 bytes)
+        ├─ ios/Flutter/Generated.xcconfig (100 bytes)
+        ├─ ios/Flutter/ephemeral (100 bytes)
+        ├─ ios/Flutter/flutter_export_environment.sh (100 bytes)
         ├─ linux/flutter/ephemeral (300 bytes)
+        ├─ macos/Flutter/ephemeral (100 bytes)
         └─ windows/flutter/ephemeral (200 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      Projects cleaned: 1, Bytes deleted: 2.93 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn rebar3_removes_build_directory() -> Result {
+  Test::new()?
+    .file("project/rebar.config", "")
+    .file(
+      "project/_build/default/lib/foo/ebin/foo.beam",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/rebar.config"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Rebar3 (Erlang) project (0 seconds ago)
+        └─ _build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -648,14 +837,19 @@ fn sbt_removes_target_directories() -> Result {
       "project/project/target/scala-2.12/sbt-1.0/classes/Build.class",
       &"b".repeat(500),
     )
+    .file(
+      "project/module/target/scala-3.3.1/classes/Module.class",
+      &"c".repeat(300),
+    )
     .exists(&["project/build.sbt"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
-      [ROOT]/project SBT (Scala) project (0 seconds ago)
+      [ROOT]/project sbt (Scala) project (0 seconds ago)
+        ├─ module/target (300 bytes)
         ├─ project/target (500 bytes)
         └─ target (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      Projects cleaned: 1, Bytes deleted: 1.76 KiB
       "
     })
     .run()
@@ -682,26 +876,35 @@ fn stack_removes_stack_work() -> Result {
 }
 
 #[test]
-fn turborepo_removes_turbo_directory() -> Result {
-  Test::new()?
-    .file("project/turbo.json", "")
-    .file("project/.turbo/cache/data", &"a".repeat(1000))
-    .exists(&["project/turbo.json"])
-    .expected_status(0)
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Turborepo project (0 seconds ago)
-        └─ .turbo (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
+fn turborepo_configurations_remove_turbo_directory() -> Result {
+  #[track_caller]
+  fn case(configuration: &'static str) -> Result {
+    Test::new()?
+      .file(configuration, "")
+      .file("project/.turbo/cache/data", &"a".repeat(1000))
+      .exists(&[configuration])
+      .expected_status(0)
+      .expected_stdout(indoc! {
+        "
+        [ROOT]/project Turborepo project (0 seconds ago)
+          └─ .turbo (1000 bytes)
+        Projects cleaned: 1, Bytes deleted: 1000 bytes
+        "
+      })
+      .run()
+  }
+
+  case("project/turbo.json")?;
+  case("project/turbo.jsonc")?;
+
+  Ok(())
 }
 
 #[test]
 fn unity_removes_build_directories() -> Result {
   Test::new()?
     .file("project/Assembly-CSharp.csproj", "")
+    .file("project/bin/Debug/Assembly-CSharp.dll", "bar")
     .file(
       "project/Library/ScriptAssemblies/Assembly-CSharp.dll",
       &"a".repeat(1000),
@@ -712,7 +915,10 @@ fn unity_removes_build_directories() -> Result {
     .file("project/MemoryCaptures/capture.raw", &"e".repeat(100))
     .file("project/Build/game.exe", &"f".repeat(100))
     .file("project/Builds/game.exe", &"g".repeat(100))
-    .exists(&["project/Assembly-CSharp.csproj"])
+    .exists(&[
+      "project/Assembly-CSharp.csproj",
+      "project/bin/Debug/Assembly-CSharp.dll",
+    ])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
