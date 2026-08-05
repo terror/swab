@@ -210,6 +210,23 @@ impl<'a> Test<'a> {
 }
 
 #[test]
+fn buck2_removes_buck_out() -> Result {
+  Test::new()?
+    .file("project/.buckconfig", "")
+    .file("project/buck-out/v2/gen/app", &"a".repeat(1000))
+    .exists(&["project/.buckconfig"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Buck2 project (0 seconds ago)
+        └─ buck-out (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn cargo_removes_target_directory() -> Result {
   Test::new()?
     .file("project/Cargo.toml", "")
