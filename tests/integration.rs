@@ -663,20 +663,28 @@ fn stack_removes_stack_work() -> Result {
 }
 
 #[test]
-fn turborepo_removes_turbo_directory() -> Result {
-  Test::new()?
-    .file("project/turbo.json", "")
-    .file("project/.turbo/cache/data", &"a".repeat(1000))
-    .exists(&["project/turbo.json"])
-    .expected_status(0)
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Turborepo project (0 seconds ago)
-        └─ .turbo (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
+fn turborepo_configurations_remove_turbo_directory() -> Result {
+  #[track_caller]
+  fn case(configuration: &'static str) -> Result {
+    Test::new()?
+      .file(configuration, "")
+      .file("project/.turbo/cache/data", &"a".repeat(1000))
+      .exists(&[configuration])
+      .expected_status(0)
+      .expected_stdout(indoc! {
+        "
+        [ROOT]/project Turborepo project (0 seconds ago)
+          └─ .turbo (1000 bytes)
+        Projects cleaned: 1, Bytes deleted: 1000 bytes
+        "
+      })
+      .run()
+  }
+
+  case("project/turbo.json")?;
+  case("project/turbo.jsonc")?;
+
+  Ok(())
 }
 
 #[test]
