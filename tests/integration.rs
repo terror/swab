@@ -508,13 +508,17 @@ fn cabal_removes_dist_newstyle() -> Result {
       "project/dist-newstyle/build/x86_64-linux/ghc-9.4.7/app-0.1.0.0/build/app/app",
       &"a".repeat(1000),
     )
-    .exists(&["project/cabal.project"])
+    .file("standalone/foo.cabal", "")
+    .file("standalone/dist-newstyle/build/foo", &"b".repeat(500))
+    .exists(&["project/cabal.project", "standalone/foo.cabal"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cabal (Haskell) project (0 seconds ago)
         └─ dist-newstyle (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      [ROOT]/standalone Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
       "
     })
     .run()
