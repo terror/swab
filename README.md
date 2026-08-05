@@ -15,10 +15,10 @@ and hunting down `.venv` directories in a third gets tedious. **swab** automates
 this by detecting project types and cleaning them with a single command.
 
 We currently provide
-[22 built-in rules](https://github.com/terror/swab/tree/master/src/rule) that
-cover popular ecosystems: Rust (Cargo), Node.js, Python, Go, .NET, Swift, Elixir,
-Zig, and many more. The rule system is designed to be easily extended with custom
-rules to fit any project's specific needs.
+[29 built-in rules](https://github.com/terror/swab/tree/master/src/rule) that
+cover popular ecosystems: Rust (Cargo), Node.js, Python, Terraform, .NET, Swift,
+Elixir, Zig, and many more. The rule system is designed to be easily extended
+with custom rules to fit any project's specific needs.
 
 ## Installation
 
