@@ -48,6 +48,7 @@ mod godot;
 mod gradle;
 mod jupyter;
 mod maven;
+mod nextjs;
 mod node;
 mod pixi;
 mod pub_;
