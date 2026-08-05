@@ -61,6 +61,7 @@ mod terragrunt;
 mod turborepo;
 mod unity;
 mod unreal;
+mod vcpkg;
 mod zig;
 
 pub(crate) trait Rule: Sync {

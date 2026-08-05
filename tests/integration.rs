@@ -990,6 +990,26 @@ fn unreal_removes_build_directories() -> Result {
 }
 
 #[test]
+fn vcpkg_removes_installed_directory() -> Result {
+  Test::new()?
+    .file("project/vcpkg.json", "")
+    .file(
+      "project/vcpkg_installed/x64-linux/lib/libfoo.a",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/vcpkg.json"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project vcpkg project (0 seconds ago)
+        └─ vcpkg_installed (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn dry_run_does_not_delete_files() -> Result {
   Test::new()?
     .argument("--dry-run")
