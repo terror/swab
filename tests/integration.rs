@@ -292,7 +292,7 @@ fn dotnet_removes_bin_and_obj() -> Result {
 }
 
 #[test]
-fn elixir_removes_build_directories() -> Result {
+fn elixir_removes_build_and_dependency_directories() -> Result {
   Test::new()?
     .file("project/mix.exs", "")
     .file(
@@ -300,14 +300,16 @@ fn elixir_removes_build_directories() -> Result {
       &"a".repeat(1000),
     )
     .file("project/.elixir_ls/build/dev/lib/app.ex", &"b".repeat(500))
+    .file("project/deps/foo/ebin/foo.beam", &"c".repeat(300))
     .exists(&["project/mix.exs"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Elixir project (0 seconds ago)
         ├─ .elixir_ls (500 bytes)
-        └─ _build (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+        ├─ _build (1000 bytes)
+        └─ deps (300 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.76 KiB
       "
     })
     .run()
