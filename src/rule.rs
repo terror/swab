@@ -38,6 +38,7 @@ macro_rules! define_rule {
 
 inventory::collect!(&'static (dyn Rule + Sync));
 
+mod buck2;
 mod cabal;
 mod cargo;
 mod cmake;
