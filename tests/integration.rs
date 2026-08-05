@@ -395,12 +395,13 @@ fn node_removes_angular_cache() -> Result {
   Test::new()?
     .file("project/package.json", "")
     .file("project/.angular/cache/data.json", &"a".repeat(1000))
-    .exists(&["project/package.json"])
+    .file("project/.angular/config.json", "bar")
+    .exists(&["project/package.json", "project/.angular/config.json"])
     .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Node project (0 seconds ago)
-        └─ .angular (1000 bytes)
+        └─ .angular/cache (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
