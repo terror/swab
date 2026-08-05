@@ -415,7 +415,10 @@ fn python_removes_cache_directories() -> Result {
       "project/.venv/lib/python3.12/site-packages/pip.py",
       &"a".repeat(1000),
     )
-    .file("project/__pycache__/main.cpython-312.pyc", &"b".repeat(500))
+    .file(
+      "project/src/foo/__pycache__/main.cpython-312.pyc",
+      &"b".repeat(500),
+    )
     .file("project/.pytest_cache/v/cache/data", &"c".repeat(200))
     .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
     .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
@@ -428,8 +431,29 @@ fn python_removes_cache_directories() -> Result {
         ├─ .pytest_cache (200 bytes)
         ├─ .ruff_cache (100 bytes)
         ├─ .venv (1000 bytes)
-        └─ __pycache__ (500 bytes)
+        └─ src/foo/__pycache__ (500 bytes)
       Projects cleaned: 1, Bytes deleted: 1.86 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn python_detects_setup_project_files() -> Result {
+  Test::new()?
+    .file("foo/setup.py", "")
+    .file("foo/__pycache__/foo.pyc", &"a".repeat(500))
+    .file("bar/setup.cfg", "")
+    .file("bar/__pycache__/bar.pyc", &"b".repeat(300))
+    .exists(&["foo/setup.py", "bar/setup.cfg"])
+    .expected_status(0)
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/bar Python project (0 seconds ago)
+        └─ __pycache__ (300 bytes)
+      [ROOT]/foo Python project (0 seconds ago)
+        └─ __pycache__ (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 800 bytes
       "
     })
     .run()
