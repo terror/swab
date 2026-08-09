@@ -10,10 +10,11 @@ pub(crate) struct Context {
 
 impl Context {
   pub(crate) fn contains(&self, pattern: &str) -> bool {
-    let matcher = match Glob::new(pattern) {
-      Ok(glob) => glob.compile_matcher(),
-      Err(_) => return false,
-    };
+    let matcher =
+      match GlobBuilder::new(pattern).literal_separator(true).build() {
+        Ok(glob) => glob.compile_matcher(),
+        Err(_) => return false,
+      };
 
     self
       .directories
@@ -30,7 +31,14 @@ impl Context {
         Action::Remove(pattern) => Some(pattern),
         Action::Command(_) => None,
       })
-      .map(|pattern| Ok(Glob::new(pattern)?.compile_matcher()))
+      .map(|pattern| {
+        Ok(
+          GlobBuilder::new(pattern)
+            .literal_separator(true)
+            .build()?
+            .compile_matcher(),
+        )
+      })
       .collect::<Result<Vec<_>>>()?;
 
     let matches = matchers

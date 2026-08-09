@@ -218,6 +218,10 @@ impl Arguments {
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
       |totals @ (total_bytes, total_projects), context| {
+        if !context.root.is_dir() {
+          return Ok(totals);
+        }
+
         self
           .process_context(&context, &rules)
           .map(|(bytes, should_count)| {
