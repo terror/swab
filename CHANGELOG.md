@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5](https://github.com/terror/swab/releases/tag/0.1.5) - 2026-08-09
+
+### Fixed
+
+- Fix nested project boundaries ([#87](https://github.com/terror/swab/pull/87) by [terror](https://github.com/terror))
+
+### Misc
+
+- Filter projects by age before traversal ([#86](https://github.com/terror/swab/pull/86) by [terror](https://github.com/terror))
+- Optimize removal match pruning ([#85](https://github.com/terror/swab/pull/85) by [terror](https://github.com/terror))
+- Bump clap from 4.6.4 to 4.6.5 ([#84](https://github.com/terror/swab/pull/84) by [app/dependabot](https://github.com/app/dependabot))
+- Bump globset from 0.4.19 to 0.4.20 ([#83](https://github.com/terror/swab/pull/83) by [app/dependabot](https://github.com/app/dependabot))
+
 ## [0.1.4](https://github.com/terror/swab/releases/tag/0.1.4) - 2026-08-06
 
 ### Added
