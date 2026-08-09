@@ -9,7 +9,7 @@ use {
   context::Context,
   detection::Detection,
   dialoguer::{Confirm, theme::ColorfulTheme},
-  globset::Glob,
+  globset::{Glob, GlobBuilder},
   path_ext::PathExt,
   report::Report,
   rule::Rule,

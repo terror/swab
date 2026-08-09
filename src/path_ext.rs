@@ -9,19 +9,11 @@ impl PathExt for Path {
   fn directories(&self, follow_symlinks: bool) -> Result<Vec<PathBuf>> {
     let mut directories = Vec::new();
 
-    for entry in fs::read_dir(self)? {
+    for entry in WalkDir::new(self).follow_links(follow_symlinks) {
       let entry = entry?;
 
-      let path = entry.path();
-
-      let is_dir = if follow_symlinks {
-        path.is_dir()
-      } else {
-        entry.file_type().is_ok_and(|file_type| file_type.is_dir())
-      };
-
-      if is_dir {
-        directories.push(path);
+      if entry.depth() > 0 && entry.file_type().is_dir() {
+        directories.push(entry.into_path());
       }
     }
 
@@ -162,21 +154,24 @@ mod tests {
   }
 
   #[test]
-  fn directories_returns_sorted_subdirectories() {
+  fn directories_returns_sorted_descendants() {
     let tree = temptree! {
       "file.txt": "content",
-      "zebra": {},
+      "zebra": {
+        "nested": {},
+      },
       "alpha": {},
       "middle": {}
     };
 
     let directories = tree.path().directories(false).unwrap();
 
-    assert_eq!(directories.len(), 3);
+    assert_eq!(directories.len(), 4);
 
     assert_eq!(directories[0], tree.path().join("alpha"));
     assert_eq!(directories[1], tree.path().join("middle"));
     assert_eq!(directories[2], tree.path().join("zebra"));
+    assert_eq!(directories[3], tree.path().join("zebra/nested"));
   }
 
   #[test]

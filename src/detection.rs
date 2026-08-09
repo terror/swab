@@ -31,9 +31,12 @@ impl TryFrom<ConfigDetection> for Detection {
           "detection pattern cannot be empty"
         );
 
-        Glob::new(&pattern).map_err(|error| {
-          anyhow!("invalid detection pattern `{pattern}`: {error}")
-        })?;
+        GlobBuilder::new(&pattern)
+          .literal_separator(true)
+          .build()
+          .map_err(|error| {
+            anyhow!("invalid detection pattern `{pattern}`: {error}")
+          })?;
 
         Ok(Detection::Pattern(Box::leak(pattern.into_boxed_str())))
       }

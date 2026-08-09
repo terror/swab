@@ -371,10 +371,28 @@ fn dotnet_removes_nested_project_outputs() -> Result {
     .expected_status(0)
     .expected_stdout(indoc! {
       "
-      [ROOT]/solution .NET project (0 seconds ago)
-        ├─ src/App/bin (1000 bytes)
-        └─ tests/App.Tests/obj (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      [ROOT]/solution/src/App .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      [ROOT]/solution/tests/App.Tests .NET project (0 seconds ago)
+        └─ obj (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_does_not_remove_outputs_from_sibling_directories() -> Result {
+  Test::new()?
+    .file("a/App.csproj", "")
+    .file("a/bin/App.dll", &"a".repeat(1000))
+    .file("b/bin/Other.dll", &"b".repeat(500))
+    .exists(&["a/App.csproj", "b/bin/Other.dll"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/a .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -714,6 +732,23 @@ fn cabal_removes_dist_newstyle() -> Result {
 }
 
 #[test]
+fn cabal_detection_does_not_cross_directories() -> Result {
+  Test::new()?
+    .file("nested/foo.cabal", "")
+    .file("nested/dist-newstyle/app", &"a".repeat(1000))
+    .file("dist-newstyle/unrelated", &"b".repeat(500))
+    .exists(&["nested/foo.cabal", "dist-newstyle/unrelated"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/nested Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn cmake_removes_build_directories() -> Result {
   Test::new()?
     .file("project/CMakeLists.txt", "")
@@ -787,8 +822,8 @@ fn jupyter_removes_checkpoints() -> Result {
     .expected_status(0)
     .expected_stdout(indoc! {
       "
-      [ROOT] Jupyter project (0 seconds ago)
-        └─ project/.ipynb_checkpoints (1000 bytes)
+      [ROOT]/project Jupyter project (0 seconds ago)
+        └─ .ipynb_checkpoints (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
@@ -1074,6 +1109,23 @@ fn unreal_removes_build_directories() -> Result {
         ├─ Intermediate (100 bytes)
         └─ Saved (300 bytes)
       Projects cleaned: 1, Bytes deleted: 2.05 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn unreal_does_not_remove_ancestor_outputs() -> Result {
+  Test::new()?
+    .file("nested/MyGame.uproject", "")
+    .file("nested/Saved/MyGame.log", &"a".repeat(1000))
+    .file("Build/unrelated", &"b".repeat(500))
+    .exists(&["nested/MyGame.uproject", "Build/unrelated"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/nested Unreal Engine project (0 seconds ago)
+        └─ Saved (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
