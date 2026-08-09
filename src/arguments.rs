@@ -203,21 +203,17 @@ impl Arguments {
 
     let contexts = directories
       .into_iter()
-      .map(|directory| Context::new(directory, self.follow_symlinks))
-      .collect::<Result<Vec<_>>>()?;
-
-    let contexts = contexts
-      .into_iter()
-      .filter(|context| {
+      .filter(|directory| {
         let Some(age) = &self.older_than else {
           return true;
         };
 
-        context
-          .modified_time()
+        fs::metadata(directory)
+          .and_then(|metadata| metadata.modified())
           .is_ok_and(|modified| age.older_than(modified))
       })
-      .collect::<Vec<_>>();
+      .map(|directory| Context::new(directory, self.follow_symlinks))
+      .collect::<Result<Vec<_>>>()?;
 
     let (total_bytes, total_projects) = contexts.into_iter().try_fold(
       (0u64, 0u64),
