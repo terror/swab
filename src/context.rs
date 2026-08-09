@@ -48,37 +48,37 @@ impl Context {
     let mut matched = matches.into_iter().collect::<Vec<PathBuf>>();
     matched.sort_unstable();
 
-    let (pruned, _) = matched.into_iter().fold(
-      (Vec::new(), Vec::new()),
-      |(mut pruned, mut kept_directories), relative_path| {
-        let full_path = self.root.join(&relative_path);
+    let mut pruned = Vec::new();
+    let mut containing_directory = None;
 
-        let metadata = if self.follow_symlinks {
-          fs::metadata(&full_path)
-        } else {
-          fs::symlink_metadata(&full_path)
-        };
+    for relative_path in matched {
+      if containing_directory
+        .as_ref()
+        .is_some_and(|directory| relative_path.starts_with(directory))
+      {
+        continue;
+      }
 
-        let Ok(metadata) = metadata else {
-          return (pruned, kept_directories);
-        };
+      containing_directory = None;
 
-        if kept_directories
-          .iter()
-          .any(|dir| relative_path.starts_with(dir))
-        {
-          return (pruned, kept_directories);
-        }
+      let full_path = self.root.join(&relative_path);
 
-        if metadata.is_dir() {
-          kept_directories.push(relative_path.clone());
-        }
+      let metadata = if self.follow_symlinks {
+        fs::metadata(&full_path)
+      } else {
+        fs::symlink_metadata(&full_path)
+      };
 
-        pruned.push(relative_path);
+      let Ok(metadata) = metadata else {
+        continue;
+      };
 
-        (pruned, kept_directories)
-      },
-    );
+      if metadata.is_dir() {
+        containing_directory = Some(relative_path.clone());
+      }
+
+      pruned.push(relative_path);
+    }
 
     Ok(pruned)
   }
