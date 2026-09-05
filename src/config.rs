@@ -58,28 +58,6 @@ impl Display for ConfigDetection {
   }
 }
 
-impl ConfigDetection {
-  pub(crate) fn fold(
-    items: Vec<ConfigDetection>,
-    combine: fn(Box<Detection>, Box<Detection>) -> Detection,
-    label: &str,
-  ) -> Result<Detection> {
-    let mut detections = items
-      .into_iter()
-      .map(ConfigDetection::try_into)
-      .collect::<Result<Vec<_>>>()?
-      .into_iter();
-
-    let first = detections.next().ok_or_else(|| {
-      anyhow!("`{label}` detection must contain at least one entry")
-    })?;
-
-    Ok(detections.fold(first, |left, right| {
-      combine(Box::new(left), Box::new(right))
-    }))
-  }
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub(crate) enum ConfigAction {

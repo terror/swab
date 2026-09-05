@@ -4,10 +4,10 @@ define_rule! {
   Terraform {
     id: "terraform",
     name: "Terraform",
-    detection: Detection::Any(
-      Box::new(Detection::Pattern(".terraform.lock.hcl")),
-      Box::new(Detection::Pattern(".terraform")),
-    ),
+    detection: Detection::Any(vec![
+      Detection::Pattern(".terraform.lock.hcl"),
+      Detection::Pattern(".terraform"),
+    ]),
     actions: [
       Action::Remove(".terraform"),
     ],

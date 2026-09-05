@@ -4,19 +4,15 @@ define_rule! {
   Nextjs {
     id: "nextjs",
     name: "Next.js",
-    detection: Detection::All(
-      Box::new(Detection::Pattern("package.json")),
-      Box::new(Detection::Any(
-        Box::new(Detection::Pattern(".next")),
-        Box::new(Detection::Any(
-          Box::new(Detection::Pattern("next.config.js")),
-          Box::new(Detection::Any(
-            Box::new(Detection::Pattern("next.config.mjs")),
-            Box::new(Detection::Pattern("next.config.ts")),
-          )),
-        )),
-      )),
-    ),
+    detection: Detection::All(vec![
+      Detection::Pattern("package.json"),
+      Detection::Any(vec![
+        Detection::Pattern(".next"),
+        Detection::Pattern("next.config.js"),
+        Detection::Pattern("next.config.mjs"),
+        Detection::Pattern("next.config.ts"),
+      ]),
+    ]),
     actions: [
       Action::Remove(".next"),
     ],
