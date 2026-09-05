@@ -1,11 +1,13 @@
 use {
   anyhow::Error,
-  executable_path::executable_path,
   filetime::{self, FileTime},
   indoc::indoc,
   pretty_assertions::assert_eq,
   std::{
-    fs, iter::once, process::Command, str, time::Duration, time::SystemTime,
+    fs,
+    process::Command,
+    str,
+    time::{Duration, SystemTime},
   },
   tempfile::TempDir,
 };
@@ -26,26 +28,20 @@ struct Test<'a> {
 }
 
 impl<'a> Test<'a> {
-  fn age(self, age: Duration) -> Self {
-    Self {
-      age: Some(age),
-      ..self
-    }
+  fn age(mut self, age: Duration) -> Self {
+    self.age = Some(age);
+
+    self
   }
 
-  fn argument(self, argument: &str) -> Self {
-    Self {
-      arguments: self
-        .arguments
-        .into_iter()
-        .chain(once(argument.to_owned()))
-        .collect(),
-      ..self
-    }
+  fn argument(mut self, argument: &str) -> Self {
+    self.arguments.push(argument.to_owned());
+
+    self
   }
 
   fn command(&self) -> Result<Command> {
-    let mut command = Command::new(executable_path(env!("CARGO_PKG_NAME")));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_swab"));
 
     command
       .env("NO_COLOR", "1")
@@ -67,54 +63,40 @@ impl<'a> Test<'a> {
     Ok(command)
   }
 
-  fn directory(self, directory: &str) -> Self {
-    Self {
-      directory: Some(directory.to_owned()),
-      ..self
-    }
+  fn directory(mut self, directory: &str) -> Self {
+    self.directory = Some(directory.to_owned());
+
+    self
   }
 
-  fn exists(self, paths: &[&'a str]) -> Self {
-    Self {
-      exists: self
-        .exists
-        .into_iter()
-        .chain(paths.iter().copied())
-        .collect(),
-      ..self
-    }
+  fn exists(mut self, paths: &[&'a str]) -> Self {
+    self.exists.extend_from_slice(paths);
+
+    self
   }
 
-  fn expected_status(self, expected_status: i32) -> Self {
-    Self {
-      expected_status,
-      ..self
-    }
+  fn expected_status(mut self, expected_status: i32) -> Self {
+    self.expected_status = expected_status;
+
+    self
   }
 
-  fn expected_stderr(self, expected_stderr: &str) -> Self {
-    Self {
-      expected_stderr: expected_stderr.to_owned(),
-      ..self
-    }
+  fn expected_stderr(mut self, expected_stderr: &str) -> Self {
+    expected_stderr.clone_into(&mut self.expected_stderr);
+
+    self
   }
 
-  fn expected_stdout(self, expected_stdout: &str) -> Self {
-    Self {
-      expected_stdout: expected_stdout.to_owned(),
-      ..self
-    }
+  fn expected_stdout(mut self, expected_stdout: &str) -> Self {
+    expected_stdout.clone_into(&mut self.expected_stdout);
+
+    self
   }
 
-  fn file(self, path: &'a str, content: &'a str) -> Self {
-    Self {
-      files: self
-        .files
-        .into_iter()
-        .chain(once((path, content)))
-        .collect(),
-      ..self
-    }
+  fn file(mut self, path: &'a str, content: &'a str) -> Self {
+    self.files.push((path, content));
+
+    self
   }
 
   fn new() -> Result<Self> {
@@ -170,11 +152,7 @@ impl<'a> Test<'a> {
       "unexpected exit status\nstderr: {stderr}"
     );
 
-    if self.expected_stderr.is_empty() && !stderr.is_empty() {
-      panic!("expected empty stderr: {stderr}");
-    } else {
-      assert_eq!(stderr, self.expected_stderr);
-    }
+    assert_eq!(stderr, self.expected_stderr);
 
     let stdout = str::from_utf8(&output.stdout)?
       .replace(&self.tempdir.path().display().to_string(), "[ROOT]")
@@ -215,7 +193,6 @@ fn buck2_removes_buck_out() -> Result {
     .file("project/.buckconfig", "")
     .file("project/buck-out/v2/gen/app", &"a".repeat(1000))
     .exists(&["project/.buckconfig"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Buck2 project (0 seconds ago)
@@ -233,7 +210,6 @@ fn cargo_removes_target_directory() -> Result {
     .file("project/target/debug/app", &"a".repeat(1000))
     .file("project/target/release/app", &"b".repeat(500))
     .exists(&["project/Cargo.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cargo project (0 seconds ago)
@@ -251,7 +227,6 @@ fn cargo_removes_target_directory_at_root() -> Result {
     .file("target/debug/app", &"a".repeat(1000))
     .file("target/release/app", &"b".repeat(500))
     .exists(&["Cargo.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT] Cargo project (0 seconds ago)
@@ -276,7 +251,6 @@ fn cargo_removes_nested_target_directories() -> Result {
       "workspace/crates/foo/Cargo.toml",
       "workspace/crates/bar/Cargo.toml",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/workspace Cargo project (0 seconds ago)
@@ -297,7 +271,6 @@ fn dotnet_removes_bin_and_obj() -> Result {
     .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
     .file("project/obj/Debug/net8.0/App.dll", &"b".repeat(500))
     .exists(&["project/App.csproj"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project .NET project (0 seconds ago)
@@ -317,7 +290,6 @@ fn dune_removes_build_directory() -> Result {
     .file("workspace/dune-workspace", "")
     .file("workspace/_build/default/lib/foo.cma", &"b".repeat(500))
     .exists(&["project/dune-project", "workspace/dune-workspace"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Dune (OCaml) project (0 seconds ago)
@@ -337,7 +309,6 @@ fn dotnet_detects_visual_basic_projects() -> Result {
     .file("project/App.vbproj", "")
     .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
     .exists(&["project/App.vbproj"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project .NET project (0 seconds ago)
@@ -368,7 +339,6 @@ fn dotnet_removes_nested_project_outputs() -> Result {
       "solution/src/App/App.csproj",
       "solution/tests/App.Tests/App.Tests.fsproj",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/solution/src/App .NET project (0 seconds ago)
@@ -409,7 +379,6 @@ fn elixir_removes_build_and_dependency_directories() -> Result {
     .file("project/.elixir_ls/build/dev/lib/app.ex", &"b".repeat(500))
     .file("project/deps/foo/ebin/foo.beam", &"c".repeat(300))
     .exists(&["project/mix.exs"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Elixir project (0 seconds ago)
@@ -432,7 +401,6 @@ fn gradle_removes_build_directories() -> Result {
       &"b".repeat(500),
     )
     .exists(&["project/build.gradle"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Gradle project (0 seconds ago)
@@ -450,7 +418,6 @@ fn gradle_kotlin_dsl() -> Result {
     .file("project/build.gradle.kts", "")
     .file("project/build/classes/main/App.class", &"a".repeat(1000))
     .exists(&["project/build.gradle.kts"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Gradle project (0 seconds ago)
@@ -469,7 +436,6 @@ fn gradle_multi_project_builds() -> Result {
     .file("kotlin/settings.gradle.kts", "")
     .file("kotlin/lib/build/classes/main/Lib.class", &"b".repeat(500))
     .exists(&["groovy/settings.gradle", "kotlin/settings.gradle.kts"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/groovy Gradle project (0 seconds ago)
@@ -496,7 +462,6 @@ fn maven_removes_target() -> Result {
       &"b".repeat(500),
     )
     .exists(&["project/pom.xml", "project/module/pom.xml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Maven project (0 seconds ago)
@@ -515,7 +480,6 @@ fn node_removes_node_modules() -> Result {
     .file("project/node_modules/lodash/index.js", &"a".repeat(1000))
     .file("project/node_modules/express/index.js", &"b".repeat(500))
     .exists(&["project/package.json"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Node project (0 seconds ago)
@@ -533,7 +497,6 @@ fn node_removes_angular_cache() -> Result {
     .file("project/.angular/cache/data.json", &"a".repeat(1000))
     .file("project/.angular/config.json", "bar")
     .exists(&["project/package.json", "project/.angular/config.json"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Node project (0 seconds ago)
@@ -556,7 +519,6 @@ fn nextjs_removes_next_directory() -> Result {
       "project/next.config.ts",
       "project/out/index.html",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Next.js project (0 seconds ago)
@@ -575,7 +537,6 @@ fn nx_removes_cache_and_workspace_data() -> Result {
     .file("project/.nx/workspace-data/bar", &"b".repeat(500))
     .file("project/.nx/foo/bar", "baz")
     .exists(&["project/nx.json", "project/.nx/foo/bar"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Nx project (0 seconds ago)
@@ -603,7 +564,6 @@ fn python_removes_cache_directories() -> Result {
     .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
     .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
     .exists(&["project/pyproject.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Python project (0 seconds ago)
@@ -626,7 +586,6 @@ fn python_detects_setup_project_files() -> Result {
     .file("bar/setup.cfg", "")
     .file("bar/__pycache__/bar.pyc", &"b".repeat(300))
     .exists(&["foo/setup.py", "bar/setup.cfg"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/bar Python project (0 seconds ago)
@@ -646,7 +605,6 @@ fn swift_removes_build_directories() -> Result {
     .file("project/.build/debug/App", &"a".repeat(1000))
     .file("project/.swiftpm/xcode/xcshareddata/data", &"b".repeat(500))
     .exists(&["project/Package.swift"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Swift project (0 seconds ago)
@@ -675,7 +633,6 @@ fn terraform_removes_generated_directory() -> Result {
       "lock-project/saved.tfplan",
       "tf-project/main.tf",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/lock-project Terraform project (0 seconds ago)
@@ -695,7 +652,6 @@ fn zig_removes_cache_directories() -> Result {
     .file("project/zig-cache/o/data", &"a".repeat(1000))
     .file("project/zig-out/bin/app", &"b".repeat(500))
     .exists(&["project/build.zig"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Zig project (0 seconds ago)
@@ -718,7 +674,6 @@ fn cabal_removes_dist_newstyle() -> Result {
     .file("standalone/foo.cabal", "")
     .file("standalone/dist-newstyle/build/foo", &"b".repeat(500))
     .exists(&["project/cabal.project", "standalone/foo.cabal"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cabal (Haskell) project (0 seconds ago)
@@ -756,7 +711,6 @@ fn cmake_removes_build_directories() -> Result {
     .file("project/cmake-build-debug/app", &"b".repeat(500))
     .file("project/cmake-build-release/app", &"c".repeat(500))
     .exists(&["project/CMakeLists.txt"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project CMake project (0 seconds ago)
@@ -776,7 +730,6 @@ fn composer_removes_vendor() -> Result {
     .file("project/vendor/autoload.php", &"a".repeat(1000))
     .file("project/vendor/composer/installed.json", &"b".repeat(500))
     .exists(&["project/composer.json"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Composer (PHP) project (0 seconds ago)
@@ -799,7 +752,6 @@ fn godot_removes_godot_directory() -> Result {
       "project/App.csproj",
       "project/bin/Debug/net8.0/App.dll",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Godot 4 project (0 seconds ago)
@@ -819,7 +771,6 @@ fn jupyter_removes_checkpoints() -> Result {
       &"a".repeat(1000),
     )
     .exists(&["project/notebook.ipynb"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Jupyter project (0 seconds ago)
@@ -836,7 +787,6 @@ fn pixi_removes_pixi_directory() -> Result {
     .file("project/pixi.toml", "")
     .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
     .exists(&["project/pixi.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Pixi project (0 seconds ago)
@@ -853,7 +803,6 @@ fn pixi_pyproject_removes_pixi_directory() -> Result {
     .file("project/pyproject.toml", "")
     .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
     .exists(&["project/pyproject.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Pixi project (0 seconds ago)
@@ -906,7 +855,6 @@ fn pub_removes_build_directories() -> Result {
       "project/ios/Runner/AppDelegate.swift",
       "project/macos/Runner/AppDelegate.swift",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Pub (Dart/Flutter) project (0 seconds ago)
@@ -939,7 +887,6 @@ fn rebar3_removes_build_directory() -> Result {
       &"a".repeat(1000),
     )
     .exists(&["project/rebar.config"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Rebar3 (Erlang) project (0 seconds ago)
@@ -967,7 +914,6 @@ fn sbt_removes_target_directories() -> Result {
       &"c".repeat(300),
     )
     .exists(&["project/build.sbt"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project sbt (Scala) project (0 seconds ago)
@@ -989,7 +935,6 @@ fn stack_removes_stack_work() -> Result {
       &"a".repeat(1000),
     )
     .exists(&["project/stack.yaml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Stack (Haskell) project (0 seconds ago)
@@ -1012,7 +957,6 @@ fn terragrunt_removes_nested_caches() -> Result {
       &"c".repeat(300),
     )
     .exists(&["project/terragrunt.hcl", "project/foo/terragrunt.hcl"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Terragrunt project (0 seconds ago)
@@ -1033,7 +977,6 @@ fn turborepo_configurations_remove_turbo_directory() -> Result {
       .file(configuration, "")
       .file("project/.turbo/cache/data", &"a".repeat(1000))
       .exists(&[configuration])
-      .expected_status(0)
       .expected_stdout(indoc! {
         "
         [ROOT]/project Turborepo project (0 seconds ago)
@@ -1069,7 +1012,6 @@ fn unity_removes_build_directories() -> Result {
       "project/Assembly-CSharp.csproj",
       "project/bin/Debug/Assembly-CSharp.dll",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Unity project (0 seconds ago)
@@ -1099,7 +1041,6 @@ fn unreal_removes_build_directories() -> Result {
       &"e".repeat(100),
     )
     .exists(&["project/MyGame.uproject"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Unreal Engine project (0 seconds ago)
@@ -1140,7 +1081,6 @@ fn vcpkg_removes_installed_directory() -> Result {
       &"a".repeat(1000),
     )
     .exists(&["project/vcpkg.json"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project vcpkg project (0 seconds ago)
@@ -1158,7 +1098,6 @@ fn dry_run_does_not_delete_files() -> Result {
     .file("project/Cargo.toml", "")
     .file("project/target/debug/app", &"a".repeat(1000))
     .exists(&["project/Cargo.toml", "project/target/debug/app"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cargo project (0 seconds ago)
@@ -1176,7 +1115,6 @@ fn quiet_mode_suppresses_output() -> Result {
     .file("project/Cargo.toml", "")
     .file("project/target/debug/app", &"a".repeat(1000))
     .exists(&["project/Cargo.toml"])
-    .expected_status(0)
     .expected_stdout("")
     .run()
 }
@@ -1186,7 +1124,6 @@ fn no_matching_projects() -> Result {
   Test::new()?
     .file("project/README.md", "# Hello")
     .exists(&["project/README.md"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       Projects cleaned: 0, Bytes deleted: 0 bytes
@@ -1209,7 +1146,6 @@ fn multiple_projects_different_rules() -> Result {
       "node-app/package.json",
       "python-app/pyproject.toml",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/node-app Node project (0 seconds ago)
@@ -1238,7 +1174,6 @@ fn multiple_projects_same_rule() -> Result {
       "backend/package.json",
       "shared/package.json",
     ])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/backend Node project (0 seconds ago)
@@ -1261,7 +1196,6 @@ fn older_than_filters_recent_projects() -> Result {
     .file("project/Cargo.toml", "")
     .file("project/target/debug/app", &"a".repeat(1000))
     .exists(&["project/Cargo.toml", "project/target/debug/app"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       Projects cleaned: 0, Bytes deleted: 0 bytes
@@ -1279,7 +1213,6 @@ fn older_than_includes_old_projects() -> Result {
     .file("project/Cargo.toml", "")
     .file("project/target/debug/app", &"a".repeat(1000))
     .exists(&["project/Cargo.toml"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Cargo project (30 days ago)
@@ -1299,7 +1232,6 @@ fn older_than_with_ago_suffix() -> Result {
     .file("project/package.json", "")
     .file("project/node_modules/foo/index.js", &"a".repeat(500))
     .exists(&["project/package.json"])
-    .expected_status(0)
     .expected_stdout(indoc! {
       "
       [ROOT]/project Node project (14 days ago)
