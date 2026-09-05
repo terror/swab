@@ -4,10 +4,10 @@ define_rule! {
   Cabal {
     id: "cabal",
     name: "Cabal (Haskell)",
-    detection: Detection::Any(
-      Box::new(Detection::Pattern("cabal.project")),
-      Box::new(Detection::Pattern("*.cabal")),
-    ),
+    detection: Detection::Any(vec![
+      Detection::Pattern("cabal.project"),
+      Detection::Pattern("*.cabal"),
+    ]),
     actions: [
       Action::Remove("dist-newstyle"),
     ],

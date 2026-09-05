@@ -4,13 +4,11 @@ define_rule! {
   Python {
     id: "python",
     name: "Python",
-    detection: Detection::Any(
-      Box::new(Detection::Pattern("pyproject.toml")),
-      Box::new(Detection::Any(
-        Box::new(Detection::Pattern("setup.py")),
-        Box::new(Detection::Pattern("setup.cfg")),
-      )),
-    ),
+    detection: Detection::Any(vec![
+      Detection::Pattern("pyproject.toml"),
+      Detection::Pattern("setup.py"),
+      Detection::Pattern("setup.cfg"),
+    ]),
     actions: [
       Action::Remove(".mypy_cache"),
       Action::Remove(".nox"),

@@ -4,13 +4,13 @@ define_rule! {
   Pixi {
     id: "pixi",
     name: "Pixi",
-    detection: Detection::Any(
-      Box::new(Detection::Pattern("pixi.toml")),
-      Box::new(Detection::All(
-        Box::new(Detection::Pattern("pyproject.toml")),
-        Box::new(Detection::Pattern(".pixi")),
-      )),
-    ),
+    detection: Detection::Any(vec![
+      Detection::Pattern("pixi.toml"),
+      Detection::All(vec![
+        Detection::Pattern("pyproject.toml"),
+        Detection::Pattern(".pixi"),
+      ]),
+    ]),
     actions: [
       Action::Remove(".pixi"),
     ],
