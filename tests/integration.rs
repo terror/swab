@@ -847,6 +847,32 @@ fn composer_removes_vendor() -> Result {
 }
 
 #[test]
+fn gleam_removes_root_build_directory() -> Result {
+  Test::new()?
+    .file("foo/gleam.toml", "")
+    .file("foo/manifest.toml", "")
+    .file("foo/build/bar", "baz")
+    .file("foo/src/bar.gleam", "baz")
+    .file("foo/src/build/bar", "baz")
+    .file("bar/build/foo", "baz")
+    .exists(&[
+      "foo/gleam.toml",
+      "foo/manifest.toml",
+      "foo/src/bar.gleam",
+      "foo/src/build/bar",
+      "bar/build/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo Gleam project (0 seconds ago)
+        └─ build (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn godot_removes_godot_directory() -> Result {
   Test::new()?
     .file("project/project.godot", "")
