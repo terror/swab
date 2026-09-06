@@ -585,6 +585,24 @@ fn nx_removes_cache_and_workspace_data() -> Result {
 }
 
 #[test]
+fn parcel_removes_cache_directory() -> Result {
+  Test::new()?
+    .file("foo/package.json", "")
+    .file("foo/.parcel-cache/bar", "baz")
+    .file("foo/dist/bar", "baz")
+    .file("bar/.parcel-cache/foo", "baz")
+    .exists(&["foo/package.json", "foo/dist/bar", "bar/.parcel-cache/foo"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo Parcel project (0 seconds ago)
+        └─ .parcel-cache (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn python_removes_cache_directories() -> Result {
   Test::new()?
     .file("project/pyproject.toml", "")

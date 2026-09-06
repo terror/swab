@@ -54,6 +54,7 @@ mod nextjs;
 mod node;
 mod nuxt;
 mod nx;
+mod parcel;
 mod pixi;
 mod pub_;
 mod python;
