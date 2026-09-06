@@ -599,6 +599,36 @@ fn python_detects_setup_project_files() -> Result {
 }
 
 #[test]
+fn sveltekit_removes_generated_directory() -> Result {
+  Test::new()?
+    .file("foo/package.json", "")
+    .file("foo/svelte.config.js", "")
+    .file("foo/.svelte-kit/bar", "baz")
+    .file("foo/src/bar.svelte", "baz")
+    .file("bar/package.json", "")
+    .file("bar/.svelte-kit/foo", "baz")
+    .file("baz/svelte.config.js", "")
+    .file("baz/.svelte-kit/foo", "bar")
+    .exists(&[
+      "foo/package.json",
+      "foo/svelte.config.js",
+      "foo/src/bar.svelte",
+      "bar/package.json",
+      "bar/.svelte-kit/foo",
+      "baz/svelte.config.js",
+      "baz/.svelte-kit/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo SvelteKit project (0 seconds ago)
+        └─ .svelte-kit (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn swift_removes_build_directory_and_preserves_configuration() -> Result {
   Test::new()?
     .file("project/Package.swift", "")
