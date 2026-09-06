@@ -1029,27 +1029,48 @@ fn unity_removes_build_directories() -> Result {
 }
 
 #[test]
-fn unreal_removes_build_directories() -> Result {
+fn unreal_removes_generated_directories_and_preserves_project_data() -> Result {
   Test::new()?
-    .file("project/MyGame.uproject", "")
-    .file("project/Binaries/Win64/MyGame.exe", &"a".repeat(1000))
-    .file("project/Build/WindowsNoEditor/MyGame.pak", &"b".repeat(500))
-    .file("project/Saved/Logs/MyGame.log", &"c".repeat(300))
-    .file("project/DerivedDataCache/DDC.bin", &"d".repeat(200))
-    .file(
-      "project/Intermediate/Build/Win64/MyGame.obj",
-      &"e".repeat(100),
-    )
-    .exists(&["project/MyGame.uproject"])
+    .file("project/foo.uproject", "")
+    .file("project/Binaries/Win64/foo.exe", "bar")
+    .file("project/Build/Android/foo.keystore", "bar")
+    .file("project/Build/Windows/foo.ico", "bar")
+    .file("project/Build/foo", "bar")
+    .file("project/DerivedDataCache/foo", "bar")
+    .file("project/Intermediate/Build/Win64/foo.obj", "bar")
+    .file("project/Saved/Autosaves/foo.umap", "bar")
+    .file("project/Saved/Backup/foo.uasset", "bar")
+    .file("project/Saved/Config/Windows/Editor.ini", "bar")
+    .file("project/Saved/Cooked/WindowsNoEditor/foo.uasset", "bar")
+    .file("project/Saved/Logs/foo.log", "bar")
+    .file("project/Saved/SaveGames/foo.sav", "bar")
+    .file("project/Saved/StagedBuilds/WindowsNoEditor/foo.pak", "bar")
+    .file("project/Saved/foo/bar", "bar")
+    .file("project/Saved/foo.log", "bar")
+    .exists(&[
+      "project/foo.uproject",
+      "project/Build",
+      "project/Build/Android/foo.keystore",
+      "project/Build/Windows/foo.ico",
+      "project/Build/foo",
+      "project/Saved",
+      "project/Saved/Autosaves/foo.umap",
+      "project/Saved/Backup/foo.uasset",
+      "project/Saved/Config/Windows/Editor.ini",
+      "project/Saved/SaveGames/foo.sav",
+      "project/Saved/foo/bar",
+      "project/Saved/foo.log",
+    ])
     .expected_stdout(indoc! {
       "
       [ROOT]/project Unreal Engine project (0 seconds ago)
-        ├─ Binaries (1000 bytes)
-        ├─ Build (500 bytes)
-        ├─ DerivedDataCache (200 bytes)
-        ├─ Intermediate (100 bytes)
-        └─ Saved (300 bytes)
-      Projects cleaned: 1, Bytes deleted: 2.05 KiB
+        ├─ Binaries (3 bytes)
+        ├─ DerivedDataCache (3 bytes)
+        ├─ Intermediate (3 bytes)
+        ├─ Saved/Cooked (3 bytes)
+        ├─ Saved/Logs (3 bytes)
+        └─ Saved/StagedBuilds (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 18 bytes
       "
     })
     .run()
@@ -1058,15 +1079,21 @@ fn unreal_removes_build_directories() -> Result {
 #[test]
 fn unreal_does_not_remove_ancestor_outputs() -> Result {
   Test::new()?
-    .file("nested/MyGame.uproject", "")
-    .file("nested/Saved/MyGame.log", &"a".repeat(1000))
-    .file("Build/unrelated", &"b".repeat(500))
-    .exists(&["nested/MyGame.uproject", "Build/unrelated"])
+    .file("nested/foo.uproject", "")
+    .file("nested/Saved/Logs/foo.log", "bar")
+    .file("Build/foo", "bar")
+    .file("Saved/Logs/foo.log", "bar")
+    .exists(&[
+      "nested/foo.uproject",
+      "nested/Saved",
+      "Build/foo",
+      "Saved/Logs/foo.log",
+    ])
     .expected_stdout(indoc! {
       "
       [ROOT]/nested Unreal Engine project (0 seconds ago)
-        └─ Saved (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+        └─ Saved/Logs (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
       "
     })
     .run()
