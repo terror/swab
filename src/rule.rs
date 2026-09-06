@@ -46,6 +46,7 @@ mod composer;
 mod dotnet;
 mod dune;
 mod elixir;
+mod elm;
 mod godot;
 mod gradle;
 mod jupyter;
