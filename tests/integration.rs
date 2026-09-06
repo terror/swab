@@ -392,6 +392,24 @@ fn elixir_removes_build_and_dependency_directories() -> Result {
 }
 
 #[test]
+fn elm_removes_elm_stuff_directory() -> Result {
+  Test::new()?
+    .file("foo/elm.json", "")
+    .file("foo/elm-stuff/bar", "baz")
+    .file("foo/src/bar.elm", "baz")
+    .file("bar/elm-stuff/foo", "baz")
+    .exists(&["foo/elm.json", "foo/src/bar.elm", "bar/elm-stuff/foo"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo Elm project (0 seconds ago)
+        └─ elm-stuff (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn gradle_removes_build_directories() -> Result {
   Test::new()?
     .file("project/build.gradle", "")
