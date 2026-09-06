@@ -52,6 +52,7 @@ mod jupyter;
 mod maven;
 mod nextjs;
 mod node;
+mod nuxt;
 mod nx;
 mod pixi;
 mod pub_;
