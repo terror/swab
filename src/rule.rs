@@ -59,6 +59,7 @@ mod python;
 mod rebar3;
 mod sbt;
 mod stack;
+mod sveltekit;
 mod swift;
 mod terraform;
 mod terragrunt;
