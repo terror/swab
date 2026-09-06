@@ -7,10 +7,11 @@ define_rule! {
     detection: Detection::Pattern("*.uproject"),
     actions: [
       Action::Remove("Binaries"),
-      Action::Remove("Build"),
-      Action::Remove("Saved"),
       Action::Remove("DerivedDataCache"),
       Action::Remove("Intermediate"),
+      Action::Remove("Saved/Cooked"),
+      Action::Remove("Saved/Logs"),
+      Action::Remove("Saved/StagedBuilds"),
     ],
   }
 }
