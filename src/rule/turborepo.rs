@@ -9,7 +9,7 @@ define_rule! {
       Detection::Pattern("turbo.jsonc"),
     ]),
     actions: [
-      Action::Remove(".turbo"),
+      Action::Remove(".turbo/cache"),
     ],
   }
 }

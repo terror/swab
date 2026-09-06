@@ -970,18 +970,19 @@ fn terragrunt_removes_nested_caches() -> Result {
 }
 
 #[test]
-fn turborepo_configurations_remove_turbo_directory() -> Result {
+fn turborepo_removes_cache_and_preserves_configuration() -> Result {
   #[track_caller]
-  fn case(configuration: &'static str) -> Result {
+  fn case(manifest: &'static str) -> Result {
     Test::new()?
-      .file(configuration, "")
-      .file("project/.turbo/cache/data", &"a".repeat(1000))
-      .exists(&[configuration])
+      .file(manifest, "")
+      .file("project/.turbo/cache/foo", "bar")
+      .file("project/.turbo/config.json", "foo")
+      .exists(&[manifest, "project/.turbo/config.json"])
       .expected_stdout(indoc! {
         "
         [ROOT]/project Turborepo project (0 seconds ago)
-          └─ .turbo (1000 bytes)
-        Projects cleaned: 1, Bytes deleted: 1000 bytes
+          └─ .turbo/cache (3 bytes)
+        Projects cleaned: 1, Bytes deleted: 3 bytes
         "
       })
       .run()
