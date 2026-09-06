@@ -47,6 +47,7 @@ mod dotnet;
 mod dune;
 mod elixir;
 mod elm;
+mod gleam;
 mod godot;
 mod gradle;
 mod jupyter;
