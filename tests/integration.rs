@@ -530,6 +530,42 @@ fn nextjs_removes_next_directory() -> Result {
 }
 
 #[test]
+fn nuxt_removes_generated_directories() -> Result {
+  Test::new()?
+    .file("foo/package.json", "")
+    .file("foo/nuxt.config.ts", "")
+    .file("foo/.nuxt/bar", "baz")
+    .file("foo/.output/bar", "baz")
+    .file("foo/pages/bar.vue", "baz")
+    .file("bar/package.json", "")
+    .file("bar/.nuxt/foo", "baz")
+    .file("bar/.output/foo", "baz")
+    .file("baz/nuxt.config.ts", "")
+    .file("baz/.nuxt/foo", "bar")
+    .file("baz/.output/foo", "bar")
+    .exists(&[
+      "foo/package.json",
+      "foo/nuxt.config.ts",
+      "foo/pages/bar.vue",
+      "bar/package.json",
+      "bar/.nuxt/foo",
+      "bar/.output/foo",
+      "baz/nuxt.config.ts",
+      "baz/.nuxt/foo",
+      "baz/.output/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo Nuxt project (0 seconds ago)
+        ├─ .nuxt (3 bytes)
+        └─ .output (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 6 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn nx_removes_cache_and_workspace_data() -> Result {
   Test::new()?
     .file("project/nx.json", "")
