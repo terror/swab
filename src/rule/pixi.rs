@@ -12,7 +12,7 @@ define_rule! {
       ]),
     ]),
     actions: [
-      Action::Remove(".pixi"),
+      Action::Remove(".pixi/envs"),
     ],
   }
 }

@@ -599,18 +599,22 @@ fn python_detects_setup_project_files() -> Result {
 }
 
 #[test]
-fn swift_removes_build_directories() -> Result {
+fn swift_removes_build_directory_and_preserves_configuration() -> Result {
   Test::new()?
     .file("project/Package.swift", "")
-    .file("project/.build/debug/App", &"a".repeat(1000))
-    .file("project/.swiftpm/xcode/xcshareddata/data", &"b".repeat(500))
-    .exists(&["project/Package.swift"])
+    .file("project/.build/debug/foo", "bar")
+    .file("project/.swiftpm/configuration/mirrors.json", "foo")
+    .file("project/.swiftpm/xcode/xcshareddata/foo", "bar")
+    .exists(&[
+      "project/Package.swift",
+      "project/.swiftpm/configuration/mirrors.json",
+      "project/.swiftpm/xcode/xcshareddata/foo",
+    ])
     .expected_stdout(indoc! {
       "
       [ROOT]/project Swift project (0 seconds ago)
-        ├─ .build (1000 bytes)
-        └─ .swiftpm (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+        └─ .build (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
       "
     })
     .run()
@@ -782,35 +786,28 @@ fn jupyter_removes_checkpoints() -> Result {
 }
 
 #[test]
-fn pixi_removes_pixi_directory() -> Result {
-  Test::new()?
-    .file("project/pixi.toml", "")
-    .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
-    .exists(&["project/pixi.toml"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Pixi project (0 seconds ago)
-        └─ .pixi (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
-}
+fn pixi_removes_environments_and_preserves_configuration() -> Result {
+  #[track_caller]
+  fn case(manifest: &'static str) -> Result {
+    Test::new()?
+      .file(manifest, "")
+      .file("project/.pixi/config.toml", "foo")
+      .file("project/.pixi/envs/foo/bin/bar", "baz")
+      .exists(&[manifest, "project/.pixi/config.toml"])
+      .expected_stdout(indoc! {
+        "
+        [ROOT]/project Pixi project (0 seconds ago)
+          └─ .pixi/envs (3 bytes)
+        Projects cleaned: 1, Bytes deleted: 3 bytes
+        "
+      })
+      .run()
+  }
 
-#[test]
-fn pixi_pyproject_removes_pixi_directory() -> Result {
-  Test::new()?
-    .file("project/pyproject.toml", "")
-    .file("project/.pixi/envs/default/bin/python", &"a".repeat(1000))
-    .exists(&["project/pyproject.toml"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Pixi project (0 seconds ago)
-        └─ .pixi (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
+  case("project/pixi.toml")?;
+  case("project/pyproject.toml")?;
+
+  Ok(())
 }
 
 #[test]
