@@ -204,6 +204,72 @@ fn buck2_removes_buck_out() -> Result {
 }
 
 #[test]
+fn cabal_detection_does_not_cross_directories() -> Result {
+  Test::new()?
+    .file("nested/foo.cabal", "")
+    .file("nested/dist-newstyle/app", &"a".repeat(1000))
+    .file("dist-newstyle/unrelated", &"b".repeat(500))
+    .exists(&["nested/foo.cabal", "dist-newstyle/unrelated"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/nested Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn cabal_removes_dist_newstyle() -> Result {
+  Test::new()?
+    .file("project/cabal.project", "")
+    .file(
+      "project/dist-newstyle/build/x86_64-linux/ghc-9.4.7/app-0.1.0.0/build/app/app",
+      &"a".repeat(1000),
+    )
+    .file("standalone/foo.cabal", "")
+    .file("standalone/dist-newstyle/build/foo", &"b".repeat(500))
+    .exists(&["project/cabal.project", "standalone/foo.cabal"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (1000 bytes)
+      [ROOT]/standalone Cabal (Haskell) project (0 seconds ago)
+        └─ dist-newstyle (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn cargo_removes_nested_target_directories() -> Result {
+  Test::new()?
+    .file("workspace/Cargo.toml", "")
+    .file("workspace/target/debug/main", &"a".repeat(1000))
+    .file("workspace/crates/foo/Cargo.toml", "")
+    .file("workspace/crates/foo/target/debug/foo", &"b".repeat(500))
+    .file("workspace/crates/bar/Cargo.toml", "")
+    .file("workspace/crates/bar/target/debug/bar", &"c".repeat(500))
+    .exists(&[
+      "workspace/Cargo.toml",
+      "workspace/crates/foo/Cargo.toml",
+      "workspace/crates/bar/Cargo.toml",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/workspace Cargo project (0 seconds ago)
+        ├─ crates/bar/target (500 bytes)
+        ├─ crates/foo/target (500 bytes)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
 fn cargo_removes_target_directory() -> Result {
   Test::new()?
     .file("project/Cargo.toml", "")
@@ -238,26 +304,71 @@ fn cargo_removes_target_directory_at_root() -> Result {
 }
 
 #[test]
-fn cargo_removes_nested_target_directories() -> Result {
+fn cmake_removes_build_directories() -> Result {
   Test::new()?
-    .file("workspace/Cargo.toml", "")
-    .file("workspace/target/debug/main", &"a".repeat(1000))
-    .file("workspace/crates/foo/Cargo.toml", "")
-    .file("workspace/crates/foo/target/debug/foo", &"b".repeat(500))
-    .file("workspace/crates/bar/Cargo.toml", "")
-    .file("workspace/crates/bar/target/debug/bar", &"c".repeat(500))
-    .exists(&[
-      "workspace/Cargo.toml",
-      "workspace/crates/foo/Cargo.toml",
-      "workspace/crates/bar/Cargo.toml",
-    ])
+    .file("project/CMakeLists.txt", "")
+    .file("project/build/CMakeCache.txt", &"a".repeat(1000))
+    .file("project/cmake-build-debug/app", &"b".repeat(500))
+    .file("project/cmake-build-release/app", &"c".repeat(500))
+    .exists(&["project/CMakeLists.txt"])
     .expected_stdout(indoc! {
       "
-      [ROOT]/workspace Cargo project (0 seconds ago)
-        ├─ crates/bar/target (500 bytes)
-        ├─ crates/foo/target (500 bytes)
-        └─ target (1000 bytes)
+      [ROOT]/project CMake project (0 seconds ago)
+        ├─ build (1000 bytes)
+        ├─ cmake-build-debug (500 bytes)
+        └─ cmake-build-release (500 bytes)
       Projects cleaned: 1, Bytes deleted: 1.95 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn composer_removes_vendor() -> Result {
+  Test::new()?
+    .file("project/composer.json", "")
+    .file("project/vendor/autoload.php", &"a".repeat(1000))
+    .file("project/vendor/composer/installed.json", &"b".repeat(500))
+    .exists(&["project/composer.json"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Composer (PHP) project (0 seconds ago)
+        └─ vendor (1.46 KiB)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_detects_visual_basic_projects() -> Result {
+  Test::new()?
+    .directory("project")
+    .file("project/App.vbproj", "")
+    .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
+    .exists(&["project/App.vbproj"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dotnet_does_not_remove_outputs_from_sibling_directories() -> Result {
+  Test::new()?
+    .file("a/App.csproj", "")
+    .file("a/bin/App.dll", &"a".repeat(1000))
+    .file("b/bin/Other.dll", &"b".repeat(500))
+    .exists(&["a/App.csproj", "b/bin/Other.dll"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/a .NET project (0 seconds ago)
+        └─ bin (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -277,43 +388,6 @@ fn dotnet_removes_bin_and_obj() -> Result {
         ├─ bin (1000 bytes)
         └─ obj (500 bytes)
       Projects cleaned: 1, Bytes deleted: 1.46 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn dune_removes_build_directory() -> Result {
-  Test::new()?
-    .file("project/dune-project", "")
-    .file("project/_build/default/bin/main.exe", &"a".repeat(1000))
-    .file("workspace/dune-workspace", "")
-    .file("workspace/_build/default/lib/foo.cma", &"b".repeat(500))
-    .exists(&["project/dune-project", "workspace/dune-workspace"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Dune (OCaml) project (0 seconds ago)
-        └─ _build (1000 bytes)
-      [ROOT]/workspace Dune (OCaml) project (0 seconds ago)
-        └─ _build (500 bytes)
-      Projects cleaned: 2, Bytes deleted: 1.46 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn dotnet_detects_visual_basic_projects() -> Result {
-  Test::new()?
-    .directory("project")
-    .file("project/App.vbproj", "")
-    .file("project/bin/Debug/net8.0/App.dll", &"a".repeat(1000))
-    .exists(&["project/App.vbproj"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project .NET project (0 seconds ago)
-        └─ bin (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -352,17 +426,37 @@ fn dotnet_removes_nested_project_outputs() -> Result {
 }
 
 #[test]
-fn dotnet_does_not_remove_outputs_from_sibling_directories() -> Result {
+fn dry_run_does_not_delete_files() -> Result {
   Test::new()?
-    .file("a/App.csproj", "")
-    .file("a/bin/App.dll", &"a".repeat(1000))
-    .file("b/bin/Other.dll", &"b".repeat(500))
-    .exists(&["a/App.csproj", "b/bin/Other.dll"])
+    .argument("--dry-run")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml", "project/target/debug/app"])
     .expected_stdout(indoc! {
       "
-      [ROOT]/a .NET project (0 seconds ago)
-        └─ bin (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      [ROOT]/project Cargo project (0 seconds ago)
+        └─ target (1000 bytes)
+      Projects matched: 1, Bytes matched: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn dune_removes_build_directory() -> Result {
+  Test::new()?
+    .file("project/dune-project", "")
+    .file("project/_build/default/bin/main.exe", &"a".repeat(1000))
+    .file("workspace/dune-workspace", "")
+    .file("workspace/_build/default/lib/foo.cma", &"b".repeat(500))
+    .exists(&["project/dune-project", "workspace/dune-workspace"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Dune (OCaml) project (0 seconds ago)
+        └─ _build (1000 bytes)
+      [ROOT]/workspace Dune (OCaml) project (0 seconds ago)
+        └─ _build (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 1.46 KiB
       "
     })
     .run()
@@ -410,21 +504,61 @@ fn elm_removes_elm_stuff_directory() -> Result {
 }
 
 #[test]
-fn gradle_removes_build_directories() -> Result {
+fn file_path_instead_of_directory_error() -> Result {
   Test::new()?
-    .file("project/build.gradle", "")
-    .file("project/build/classes/main/App.class", &"a".repeat(1000))
-    .file(
-      "project/.gradle/8.0/checksums/checksums.lock",
-      &"b".repeat(500),
+    .directory("file.txt")
+    .file("file.txt", "content")
+    .exists(&["file.txt"])
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/file.txt` is not a valid directory\n",
     )
-    .exists(&["project/build.gradle"])
+    .run()
+}
+
+#[test]
+fn gleam_removes_root_build_directory() -> Result {
+  Test::new()?
+    .file("foo/gleam.toml", "")
+    .file("foo/manifest.toml", "")
+    .file("foo/build/bar", "baz")
+    .file("foo/src/bar.gleam", "baz")
+    .file("foo/src/build/bar", "baz")
+    .file("bar/build/foo", "baz")
+    .exists(&[
+      "foo/gleam.toml",
+      "foo/manifest.toml",
+      "foo/src/bar.gleam",
+      "foo/src/build/bar",
+      "bar/build/foo",
+    ])
     .expected_stdout(indoc! {
       "
-      [ROOT]/project Gradle project (0 seconds ago)
-        ├─ .gradle (500 bytes)
-        └─ build (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      [ROOT]/foo Gleam project (0 seconds ago)
+        └─ build (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn godot_removes_godot_directory() -> Result {
+  Test::new()?
+    .file("project/project.godot", "")
+    .file("project/App.csproj", "")
+    .file("project/.godot/imported/icon.png", &"a".repeat(1000))
+    .file("project/bin/Debug/net8.0/App.dll", "bar")
+    .exists(&[
+      "project/project.godot",
+      "project/App.csproj",
+      "project/bin/Debug/net8.0/App.dll",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Godot 4 project (0 seconds ago)
+        └─ .godot (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -467,6 +601,57 @@ fn gradle_multi_project_builds() -> Result {
 }
 
 #[test]
+fn gradle_removes_build_directories() -> Result {
+  Test::new()?
+    .file("project/build.gradle", "")
+    .file("project/build/classes/main/App.class", &"a".repeat(1000))
+    .file(
+      "project/.gradle/8.0/checksums/checksums.lock",
+      &"b".repeat(500),
+    )
+    .exists(&["project/build.gradle"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Gradle project (0 seconds ago)
+        ├─ .gradle (500 bytes)
+        └─ build (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn invalid_path_error() -> Result {
+  Test::new()?
+    .directory("nonexistent")
+    .expected_status(1)
+    .expected_stderr(
+      "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
+    )
+    .run()
+}
+
+#[test]
+fn jupyter_removes_checkpoints() -> Result {
+  Test::new()?
+    .file("project/notebook.ipynb", "")
+    .file(
+      "project/.ipynb_checkpoints/notebook-checkpoint.ipynb",
+      &"a".repeat(1000),
+    )
+    .exists(&["project/notebook.ipynb"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Jupyter project (0 seconds ago)
+        └─ .ipynb_checkpoints (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn maven_removes_target() -> Result {
   Test::new()?
     .file("project/pom.xml", "")
@@ -492,17 +677,91 @@ fn maven_removes_target() -> Result {
 }
 
 #[test]
-fn node_removes_node_modules() -> Result {
+fn multiple_projects_different_rules() -> Result {
   Test::new()?
-    .file("project/package.json", "")
-    .file("project/node_modules/lodash/index.js", &"a".repeat(1000))
-    .file("project/node_modules/express/index.js", &"b".repeat(500))
-    .exists(&["project/package.json"])
+    .file("rust-app/Cargo.toml", "")
+    .file("rust-app/target/debug/app", &"a".repeat(1000))
+    .file("node-app/package.json", "")
+    .file("node-app/node_modules/lodash/index.js", &"b".repeat(500))
+    .file("python-app/pyproject.toml", "")
+    .file("python-app/.venv/bin/python", &"c".repeat(300))
+    .exists(&[
+      "rust-app/Cargo.toml",
+      "node-app/package.json",
+      "python-app/pyproject.toml",
+    ])
     .expected_stdout(indoc! {
       "
-      [ROOT]/project Node project (0 seconds ago)
-        └─ node_modules (1.46 KiB)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      [ROOT]/node-app Node project (0 seconds ago)
+        └─ node_modules (500 bytes)
+      [ROOT]/python-app Python project (0 seconds ago)
+        └─ .venv (300 bytes)
+      [ROOT]/rust-app Cargo project (0 seconds ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 3, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn multiple_projects_same_rule() -> Result {
+  Test::new()?
+    .file("frontend/package.json", "")
+    .file("frontend/node_modules/react/index.js", &"a".repeat(1000))
+    .file("backend/package.json", "")
+    .file("backend/node_modules/express/index.js", &"b".repeat(500))
+    .file("shared/package.json", "")
+    .file("shared/node_modules/lodash/index.js", &"c".repeat(300))
+    .exists(&[
+      "frontend/package.json",
+      "backend/package.json",
+      "shared/package.json",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/backend Node project (0 seconds ago)
+        └─ node_modules (500 bytes)
+      [ROOT]/frontend Node project (0 seconds ago)
+        └─ node_modules (1000 bytes)
+      [ROOT]/shared Node project (0 seconds ago)
+        └─ node_modules (300 bytes)
+      Projects cleaned: 3, Bytes deleted: 1.76 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn nextjs_removes_next_directory() -> Result {
+  Test::new()?
+    .file("project/package.json", "{}")
+    .file("project/next.config.ts", "export default {}")
+    .file("project/.next/cache/data", &"a".repeat(1000))
+    .file("project/out/index.html", "bar")
+    .exists(&[
+      "project/package.json",
+      "project/next.config.ts",
+      "project/out/index.html",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Next.js project (0 seconds ago)
+        └─ .next (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn no_matching_projects() -> Result {
+  Test::new()?
+    .file("project/README.md", "# Hello")
+    .exists(&["project/README.md"])
+    .expected_stdout(indoc! {
+      "
+      Projects cleaned: 0, Bytes deleted: 0 bytes
       "
     })
     .run()
@@ -526,22 +785,17 @@ fn node_removes_angular_cache() -> Result {
 }
 
 #[test]
-fn nextjs_removes_next_directory() -> Result {
+fn node_removes_node_modules() -> Result {
   Test::new()?
-    .file("project/package.json", "{}")
-    .file("project/next.config.ts", "export default {}")
-    .file("project/.next/cache/data", &"a".repeat(1000))
-    .file("project/out/index.html", "bar")
-    .exists(&[
-      "project/package.json",
-      "project/next.config.ts",
-      "project/out/index.html",
-    ])
+    .file("project/package.json", "")
+    .file("project/node_modules/lodash/index.js", &"a".repeat(1000))
+    .file("project/node_modules/express/index.js", &"b".repeat(500))
+    .exists(&["project/package.json"])
     .expected_stdout(indoc! {
       "
-      [ROOT]/project Next.js project (0 seconds ago)
-        └─ .next (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      [ROOT]/project Node project (0 seconds ago)
+        └─ node_modules (1.46 KiB)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
     .run()
@@ -603,6 +857,60 @@ fn nx_removes_cache_and_workspace_data() -> Result {
 }
 
 #[test]
+fn older_than_filters_recent_projects() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml", "project/target/debug/app"])
+    .expected_stdout(indoc! {
+      "
+      Projects cleaned: 0, Bytes deleted: 0 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_includes_old_projects() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .age(Duration::from_hours(720))
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cargo project (30 days ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_with_ago_suffix() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("1w ago")
+    .age(Duration::from_hours(336))
+    .file("project/package.json", "")
+    .file("project/node_modules/foo/index.js", &"a".repeat(500))
+    .exists(&["project/package.json"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Node project (14 days ago)
+        └─ node_modules (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 500 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn parcel_removes_cache_directory() -> Result {
   Test::new()?
     .file("foo/package.json", "")
@@ -615,299 +923,6 @@ fn parcel_removes_cache_directory() -> Result {
       [ROOT]/foo Parcel project (0 seconds ago)
         └─ .parcel-cache (3 bytes)
       Projects cleaned: 1, Bytes deleted: 3 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn python_removes_cache_directories() -> Result {
-  Test::new()?
-    .file("project/pyproject.toml", "")
-    .file(
-      "project/.venv/lib/python3.12/site-packages/pip.py",
-      &"a".repeat(1000),
-    )
-    .file(
-      "project/src/foo/__pycache__/main.cpython-312.pyc",
-      &"b".repeat(500),
-    )
-    .file("project/.pytest_cache/v/cache/data", &"c".repeat(200))
-    .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
-    .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
-    .exists(&["project/pyproject.toml"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Python project (0 seconds ago)
-        ├─ .mypy_cache (100 bytes)
-        ├─ .pytest_cache (200 bytes)
-        ├─ .ruff_cache (100 bytes)
-        ├─ .venv (1000 bytes)
-        └─ src/foo/__pycache__ (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.86 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn python_detects_setup_project_files() -> Result {
-  Test::new()?
-    .file("foo/setup.py", "")
-    .file("foo/__pycache__/foo.pyc", &"a".repeat(500))
-    .file("bar/setup.cfg", "")
-    .file("bar/__pycache__/bar.pyc", &"b".repeat(300))
-    .exists(&["foo/setup.py", "bar/setup.cfg"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/bar Python project (0 seconds ago)
-        └─ __pycache__ (300 bytes)
-      [ROOT]/foo Python project (0 seconds ago)
-        └─ __pycache__ (500 bytes)
-      Projects cleaned: 2, Bytes deleted: 800 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn sveltekit_removes_generated_directory() -> Result {
-  Test::new()?
-    .file("foo/package.json", "")
-    .file("foo/svelte.config.js", "")
-    .file("foo/.svelte-kit/bar", "baz")
-    .file("foo/src/bar.svelte", "baz")
-    .file("bar/package.json", "")
-    .file("bar/.svelte-kit/foo", "baz")
-    .file("baz/svelte.config.js", "")
-    .file("baz/.svelte-kit/foo", "bar")
-    .exists(&[
-      "foo/package.json",
-      "foo/svelte.config.js",
-      "foo/src/bar.svelte",
-      "bar/package.json",
-      "bar/.svelte-kit/foo",
-      "baz/svelte.config.js",
-      "baz/.svelte-kit/foo",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/foo SvelteKit project (0 seconds ago)
-        └─ .svelte-kit (3 bytes)
-      Projects cleaned: 1, Bytes deleted: 3 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn swift_removes_build_directory_and_preserves_configuration() -> Result {
-  Test::new()?
-    .file("project/Package.swift", "")
-    .file("project/.build/debug/foo", "bar")
-    .file("project/.swiftpm/configuration/mirrors.json", "foo")
-    .file("project/.swiftpm/xcode/xcshareddata/foo", "bar")
-    .exists(&[
-      "project/Package.swift",
-      "project/.swiftpm/configuration/mirrors.json",
-      "project/.swiftpm/xcode/xcshareddata/foo",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Swift project (0 seconds ago)
-        └─ .build (3 bytes)
-      Projects cleaned: 1, Bytes deleted: 3 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn terraform_removes_generated_directory() -> Result {
-  Test::new()?
-    .file("lock-project/.terraform.lock.hcl", "foo")
-    .file("lock-project/.terraform/providers/provider", "foo")
-    .file("lock-project/terraform.tfstate", "bar")
-    .file("lock-project/terraform.tfstate.backup", "baz")
-    .file("lock-project/saved.tfplan", "qux")
-    .file("tf-project/main.tf", "foo")
-    .file("tf-project/.terraform/modules/modules.json", "bar")
-    .exists(&[
-      "lock-project/.terraform.lock.hcl",
-      "lock-project/terraform.tfstate",
-      "lock-project/terraform.tfstate.backup",
-      "lock-project/saved.tfplan",
-      "tf-project/main.tf",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/lock-project Terraform project (0 seconds ago)
-        └─ .terraform (3 bytes)
-      [ROOT]/tf-project Terraform project (0 seconds ago)
-        └─ .terraform (3 bytes)
-      Projects cleaned: 2, Bytes deleted: 6 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn zig_removes_cache_directories() -> Result {
-  Test::new()?
-    .file("project/build.zig", "")
-    .file("project/zig-cache/o/data", &"a".repeat(1000))
-    .file("project/zig-out/bin/app", &"b".repeat(500))
-    .exists(&["project/build.zig"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Zig project (0 seconds ago)
-        ├─ zig-cache (1000 bytes)
-        └─ zig-out (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn cabal_removes_dist_newstyle() -> Result {
-  Test::new()?
-    .file("project/cabal.project", "")
-    .file(
-      "project/dist-newstyle/build/x86_64-linux/ghc-9.4.7/app-0.1.0.0/build/app/app",
-      &"a".repeat(1000),
-    )
-    .file("standalone/foo.cabal", "")
-    .file("standalone/dist-newstyle/build/foo", &"b".repeat(500))
-    .exists(&["project/cabal.project", "standalone/foo.cabal"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Cabal (Haskell) project (0 seconds ago)
-        └─ dist-newstyle (1000 bytes)
-      [ROOT]/standalone Cabal (Haskell) project (0 seconds ago)
-        └─ dist-newstyle (500 bytes)
-      Projects cleaned: 2, Bytes deleted: 1.46 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn cabal_detection_does_not_cross_directories() -> Result {
-  Test::new()?
-    .file("nested/foo.cabal", "")
-    .file("nested/dist-newstyle/app", &"a".repeat(1000))
-    .file("dist-newstyle/unrelated", &"b".repeat(500))
-    .exists(&["nested/foo.cabal", "dist-newstyle/unrelated"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/nested Cabal (Haskell) project (0 seconds ago)
-        └─ dist-newstyle (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn cmake_removes_build_directories() -> Result {
-  Test::new()?
-    .file("project/CMakeLists.txt", "")
-    .file("project/build/CMakeCache.txt", &"a".repeat(1000))
-    .file("project/cmake-build-debug/app", &"b".repeat(500))
-    .file("project/cmake-build-release/app", &"c".repeat(500))
-    .exists(&["project/CMakeLists.txt"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project CMake project (0 seconds ago)
-        ├─ build (1000 bytes)
-        ├─ cmake-build-debug (500 bytes)
-        └─ cmake-build-release (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 1.95 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn composer_removes_vendor() -> Result {
-  Test::new()?
-    .file("project/composer.json", "")
-    .file("project/vendor/autoload.php", &"a".repeat(1000))
-    .file("project/vendor/composer/installed.json", &"b".repeat(500))
-    .exists(&["project/composer.json"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Composer (PHP) project (0 seconds ago)
-        └─ vendor (1.46 KiB)
-      Projects cleaned: 1, Bytes deleted: 1.46 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn gleam_removes_root_build_directory() -> Result {
-  Test::new()?
-    .file("foo/gleam.toml", "")
-    .file("foo/manifest.toml", "")
-    .file("foo/build/bar", "baz")
-    .file("foo/src/bar.gleam", "baz")
-    .file("foo/src/build/bar", "baz")
-    .file("bar/build/foo", "baz")
-    .exists(&[
-      "foo/gleam.toml",
-      "foo/manifest.toml",
-      "foo/src/bar.gleam",
-      "foo/src/build/bar",
-      "bar/build/foo",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/foo Gleam project (0 seconds ago)
-        └─ build (3 bytes)
-      Projects cleaned: 1, Bytes deleted: 3 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn godot_removes_godot_directory() -> Result {
-  Test::new()?
-    .file("project/project.godot", "")
-    .file("project/App.csproj", "")
-    .file("project/.godot/imported/icon.png", &"a".repeat(1000))
-    .file("project/bin/Debug/net8.0/App.dll", "bar")
-    .exists(&[
-      "project/project.godot",
-      "project/App.csproj",
-      "project/bin/Debug/net8.0/App.dll",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Godot 4 project (0 seconds ago)
-        └─ .godot (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn jupyter_removes_checkpoints() -> Result {
-  Test::new()?
-    .file("project/notebook.ipynb", "")
-    .file(
-      "project/.ipynb_checkpoints/notebook-checkpoint.ipynb",
-      &"a".repeat(1000),
-    )
-    .exists(&["project/notebook.ipynb"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Jupyter project (0 seconds ago)
-        └─ .ipynb_checkpoints (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
       "
     })
     .run()
@@ -1004,6 +1019,67 @@ fn pub_removes_build_directories() -> Result {
 }
 
 #[test]
+fn python_detects_setup_project_files() -> Result {
+  Test::new()?
+    .file("foo/setup.py", "")
+    .file("foo/__pycache__/foo.pyc", &"a".repeat(500))
+    .file("bar/setup.cfg", "")
+    .file("bar/__pycache__/bar.pyc", &"b".repeat(300))
+    .exists(&["foo/setup.py", "bar/setup.cfg"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/bar Python project (0 seconds ago)
+        └─ __pycache__ (300 bytes)
+      [ROOT]/foo Python project (0 seconds ago)
+        └─ __pycache__ (500 bytes)
+      Projects cleaned: 2, Bytes deleted: 800 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn python_removes_cache_directories() -> Result {
+  Test::new()?
+    .file("project/pyproject.toml", "")
+    .file(
+      "project/.venv/lib/python3.12/site-packages/pip.py",
+      &"a".repeat(1000),
+    )
+    .file(
+      "project/src/foo/__pycache__/main.cpython-312.pyc",
+      &"b".repeat(500),
+    )
+    .file("project/.pytest_cache/v/cache/data", &"c".repeat(200))
+    .file("project/.mypy_cache/3.12/main.meta.json", &"d".repeat(100))
+    .file("project/.ruff_cache/0.1.0/data", &"e".repeat(100))
+    .exists(&["project/pyproject.toml"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Python project (0 seconds ago)
+        ├─ .mypy_cache (100 bytes)
+        ├─ .pytest_cache (200 bytes)
+        ├─ .ruff_cache (100 bytes)
+        ├─ .venv (1000 bytes)
+        └─ src/foo/__pycache__ (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.86 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn quiet_mode_suppresses_output() -> Result {
+  Test::new()?
+    .argument("--quiet")
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .exists(&["project/Cargo.toml"])
+    .expected_stdout("")
+    .run()
+}
+
+#[test]
 fn rebar3_removes_build_directory() -> Result {
   Test::new()?
     .file("project/rebar.config", "")
@@ -1065,6 +1141,87 @@ fn stack_removes_stack_work() -> Result {
       [ROOT]/project Stack (Haskell) project (0 seconds ago)
         └─ .stack-work (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn sveltekit_removes_generated_directory() -> Result {
+  Test::new()?
+    .file("foo/package.json", "")
+    .file("foo/svelte.config.js", "")
+    .file("foo/.svelte-kit/bar", "baz")
+    .file("foo/src/bar.svelte", "baz")
+    .file("bar/package.json", "")
+    .file("bar/.svelte-kit/foo", "baz")
+    .file("baz/svelte.config.js", "")
+    .file("baz/.svelte-kit/foo", "bar")
+    .exists(&[
+      "foo/package.json",
+      "foo/svelte.config.js",
+      "foo/src/bar.svelte",
+      "bar/package.json",
+      "bar/.svelte-kit/foo",
+      "baz/svelte.config.js",
+      "baz/.svelte-kit/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/foo SvelteKit project (0 seconds ago)
+        └─ .svelte-kit (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn swift_removes_build_directory_and_preserves_configuration() -> Result {
+  Test::new()?
+    .file("project/Package.swift", "")
+    .file("project/.build/debug/foo", "bar")
+    .file("project/.swiftpm/configuration/mirrors.json", "foo")
+    .file("project/.swiftpm/xcode/xcshareddata/foo", "bar")
+    .exists(&[
+      "project/Package.swift",
+      "project/.swiftpm/configuration/mirrors.json",
+      "project/.swiftpm/xcode/xcshareddata/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Swift project (0 seconds ago)
+        └─ .build (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn terraform_removes_generated_directory() -> Result {
+  Test::new()?
+    .file("lock-project/.terraform.lock.hcl", "foo")
+    .file("lock-project/.terraform/providers/provider", "foo")
+    .file("lock-project/terraform.tfstate", "bar")
+    .file("lock-project/terraform.tfstate.backup", "baz")
+    .file("lock-project/saved.tfplan", "qux")
+    .file("tf-project/main.tf", "foo")
+    .file("tf-project/.terraform/modules/modules.json", "bar")
+    .exists(&[
+      "lock-project/.terraform.lock.hcl",
+      "lock-project/terraform.tfstate",
+      "lock-project/terraform.tfstate.backup",
+      "lock-project/saved.tfplan",
+      "tf-project/main.tf",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/lock-project Terraform project (0 seconds ago)
+        └─ .terraform (3 bytes)
+      [ROOT]/tf-project Terraform project (0 seconds ago)
+        └─ .terraform (3 bytes)
+      Projects cleaned: 2, Bytes deleted: 6 bytes
       "
     })
     .run()
@@ -1155,6 +1312,29 @@ fn unity_removes_build_directories() -> Result {
 }
 
 #[test]
+fn unreal_does_not_remove_ancestor_outputs() -> Result {
+  Test::new()?
+    .file("nested/foo.uproject", "")
+    .file("nested/Saved/Logs/foo.log", "bar")
+    .file("Build/foo", "bar")
+    .file("Saved/Logs/foo.log", "bar")
+    .exists(&[
+      "nested/foo.uproject",
+      "nested/Saved",
+      "Build/foo",
+      "Saved/Logs/foo.log",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/nested Unreal Engine project (0 seconds ago)
+        └─ Saved/Logs (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 3 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn unreal_removes_generated_directories_and_preserves_project_data() -> Result {
   Test::new()?
     .file("project/foo.uproject", "")
@@ -1203,29 +1383,6 @@ fn unreal_removes_generated_directories_and_preserves_project_data() -> Result {
 }
 
 #[test]
-fn unreal_does_not_remove_ancestor_outputs() -> Result {
-  Test::new()?
-    .file("nested/foo.uproject", "")
-    .file("nested/Saved/Logs/foo.log", "bar")
-    .file("Build/foo", "bar")
-    .file("Saved/Logs/foo.log", "bar")
-    .exists(&[
-      "nested/foo.uproject",
-      "nested/Saved",
-      "Build/foo",
-      "Saved/Logs/foo.log",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/nested Unreal Engine project (0 seconds ago)
-        └─ Saved/Logs (3 bytes)
-      Projects cleaned: 1, Bytes deleted: 3 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
 fn vcpkg_removes_installed_directory() -> Result {
   Test::new()?
     .file("project/vcpkg.json", "")
@@ -1245,176 +1402,19 @@ fn vcpkg_removes_installed_directory() -> Result {
 }
 
 #[test]
-fn dry_run_does_not_delete_files() -> Result {
+fn zig_removes_cache_directories() -> Result {
   Test::new()?
-    .argument("--dry-run")
-    .file("project/Cargo.toml", "")
-    .file("project/target/debug/app", &"a".repeat(1000))
-    .exists(&["project/Cargo.toml", "project/target/debug/app"])
+    .file("project/build.zig", "")
+    .file("project/zig-cache/o/data", &"a".repeat(1000))
+    .file("project/zig-out/bin/app", &"b".repeat(500))
+    .exists(&["project/build.zig"])
     .expected_stdout(indoc! {
       "
-      [ROOT]/project Cargo project (0 seconds ago)
-        └─ target (1000 bytes)
-      Projects matched: 1, Bytes matched: 1000 bytes
+      [ROOT]/project Zig project (0 seconds ago)
+        ├─ zig-cache (1000 bytes)
+        └─ zig-out (500 bytes)
+      Projects cleaned: 1, Bytes deleted: 1.46 KiB
       "
     })
-    .run()
-}
-
-#[test]
-fn quiet_mode_suppresses_output() -> Result {
-  Test::new()?
-    .argument("--quiet")
-    .file("project/Cargo.toml", "")
-    .file("project/target/debug/app", &"a".repeat(1000))
-    .exists(&["project/Cargo.toml"])
-    .expected_stdout("")
-    .run()
-}
-
-#[test]
-fn no_matching_projects() -> Result {
-  Test::new()?
-    .file("project/README.md", "# Hello")
-    .exists(&["project/README.md"])
-    .expected_stdout(indoc! {
-      "
-      Projects cleaned: 0, Bytes deleted: 0 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn multiple_projects_different_rules() -> Result {
-  Test::new()?
-    .file("rust-app/Cargo.toml", "")
-    .file("rust-app/target/debug/app", &"a".repeat(1000))
-    .file("node-app/package.json", "")
-    .file("node-app/node_modules/lodash/index.js", &"b".repeat(500))
-    .file("python-app/pyproject.toml", "")
-    .file("python-app/.venv/bin/python", &"c".repeat(300))
-    .exists(&[
-      "rust-app/Cargo.toml",
-      "node-app/package.json",
-      "python-app/pyproject.toml",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/node-app Node project (0 seconds ago)
-        └─ node_modules (500 bytes)
-      [ROOT]/python-app Python project (0 seconds ago)
-        └─ .venv (300 bytes)
-      [ROOT]/rust-app Cargo project (0 seconds ago)
-        └─ target (1000 bytes)
-      Projects cleaned: 3, Bytes deleted: 1.76 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn multiple_projects_same_rule() -> Result {
-  Test::new()?
-    .file("frontend/package.json", "")
-    .file("frontend/node_modules/react/index.js", &"a".repeat(1000))
-    .file("backend/package.json", "")
-    .file("backend/node_modules/express/index.js", &"b".repeat(500))
-    .file("shared/package.json", "")
-    .file("shared/node_modules/lodash/index.js", &"c".repeat(300))
-    .exists(&[
-      "frontend/package.json",
-      "backend/package.json",
-      "shared/package.json",
-    ])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/backend Node project (0 seconds ago)
-        └─ node_modules (500 bytes)
-      [ROOT]/frontend Node project (0 seconds ago)
-        └─ node_modules (1000 bytes)
-      [ROOT]/shared Node project (0 seconds ago)
-        └─ node_modules (300 bytes)
-      Projects cleaned: 3, Bytes deleted: 1.76 KiB
-      "
-    })
-    .run()
-}
-
-#[test]
-fn older_than_filters_recent_projects() -> Result {
-  Test::new()?
-    .argument("--older-than")
-    .argument("7d")
-    .file("project/Cargo.toml", "")
-    .file("project/target/debug/app", &"a".repeat(1000))
-    .exists(&["project/Cargo.toml", "project/target/debug/app"])
-    .expected_stdout(indoc! {
-      "
-      Projects cleaned: 0, Bytes deleted: 0 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn older_than_includes_old_projects() -> Result {
-  Test::new()?
-    .argument("--older-than")
-    .argument("7d")
-    .age(Duration::from_hours(720))
-    .file("project/Cargo.toml", "")
-    .file("project/target/debug/app", &"a".repeat(1000))
-    .exists(&["project/Cargo.toml"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Cargo project (30 days ago)
-        └─ target (1000 bytes)
-      Projects cleaned: 1, Bytes deleted: 1000 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn older_than_with_ago_suffix() -> Result {
-  Test::new()?
-    .argument("--older-than")
-    .argument("1w ago")
-    .age(Duration::from_hours(336))
-    .file("project/package.json", "")
-    .file("project/node_modules/foo/index.js", &"a".repeat(500))
-    .exists(&["project/package.json"])
-    .expected_stdout(indoc! {
-      "
-      [ROOT]/project Node project (14 days ago)
-        └─ node_modules (500 bytes)
-      Projects cleaned: 1, Bytes deleted: 500 bytes
-      "
-    })
-    .run()
-}
-
-#[test]
-fn invalid_path_error() -> Result {
-  Test::new()?
-    .directory("nonexistent")
-    .expected_status(1)
-    .expected_stderr(
-      "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
-    )
-    .run()
-}
-
-#[test]
-fn file_path_instead_of_directory_error() -> Result {
-  Test::new()?
-    .directory("file.txt")
-    .file("file.txt", "content")
-    .exists(&["file.txt"])
-    .expected_status(1)
-    .expected_stderr(
-      "error: the path `[ROOT]/file.txt` is not a valid directory\n",
-    )
     .run()
 }

@@ -151,19 +151,6 @@ mod tests {
   }
 
   #[test]
-  fn matches_returns_empty_when_no_patterns_match() {
-    let tree = temptree! {
-      "README.md": "hello",
-    };
-
-    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
-
-    let rule = rule(vec![Action::remove("nope/**").unwrap()]);
-
-    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
-  }
-
-  #[test]
   fn matches_only_files() {
     let tree = temptree! {
       "b.log": "b",
@@ -181,23 +168,6 @@ mod tests {
       context.matches(&rule),
       vec![PathBuf::from("a.log"), PathBuf::from("b.log")],
     );
-  }
-
-  #[test]
-  fn matches_skips_deleted_paths() {
-    let tree = temptree! {
-      "stale.log": "x",
-    };
-
-    let root = tree.path();
-
-    let context = Context::new(root.to_path_buf(), false).unwrap();
-
-    fs::remove_file(root.join("stale.log")).unwrap();
-
-    let rule = rule(vec![Action::remove("*.log").unwrap()]);
-
-    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
   }
 
   #[test]
@@ -235,6 +205,36 @@ mod tests {
         PathBuf::from("target"),
       ],
     );
+  }
+
+  #[test]
+  fn matches_returns_empty_when_no_patterns_match() {
+    let tree = temptree! {
+      "README.md": "hello",
+    };
+
+    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
+
+    let rule = rule(vec![Action::remove("nope/**").unwrap()]);
+
+    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
+  }
+
+  #[test]
+  fn matches_skips_deleted_paths() {
+    let tree = temptree! {
+      "stale.log": "x",
+    };
+
+    let root = tree.path();
+
+    let context = Context::new(root.to_path_buf(), false).unwrap();
+
+    fs::remove_file(root.join("stale.log")).unwrap();
+
+    let rule = rule(vec![Action::remove("*.log").unwrap()]);
+
+    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
   }
 
   #[test]

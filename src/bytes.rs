@@ -51,18 +51,18 @@ mod tests {
   const EI: u64 = PI << 10;
 
   #[test]
-  fn display_bytes() {
-    assert_eq!(Bytes(0).to_string(), "0 bytes");
-    assert_eq!(Bytes(1).to_string(), "1 byte");
-    assert_eq!(Bytes(2).to_string(), "2 bytes");
-  }
-
-  #[test]
   fn display_binary_units() {
     assert_eq!(Bytes(KI).to_string(), "1 KiB");
     assert_eq!(Bytes(512 * KI).to_string(), "512 KiB");
     assert_eq!(Bytes(MI).to_string(), "1 MiB");
     assert_eq!(Bytes(MI + 512 * KI).to_string(), "1.5 MiB");
+  }
+
+  #[test]
+  fn display_bytes() {
+    assert_eq!(Bytes(0).to_string(), "0 bytes");
+    assert_eq!(Bytes(1).to_string(), "1 byte");
+    assert_eq!(Bytes(2).to_string(), "2 bytes");
   }
 
   #[test]

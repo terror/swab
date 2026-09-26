@@ -54,6 +54,42 @@ mod tests {
   use super::*;
 
   #[test]
+  fn older_than() {
+    let now = SystemTime::now();
+    let age = Age(Duration::from_mins(1));
+
+    assert!(!age.older_than(now));
+    assert!(age.older_than(now - Duration::from_mins(2)));
+  }
+
+  #[test]
+  fn parse_invalid_amount() {
+    assert_eq!(
+      "abcd".parse::<Age>().unwrap_err().to_string(),
+      "invalid age amount: ``"
+    );
+  }
+
+  #[test]
+  fn parse_invalid_unit() {
+    assert_eq!(
+      "5x".parse::<Age>().unwrap_err().to_string(),
+      "invalid age unit: `x`"
+    );
+  }
+
+  #[test]
+  fn parse_overflow() {
+    assert_eq!(
+      "307445734561825861m"
+        .parse::<Age>()
+        .unwrap_err()
+        .to_string(),
+      "age is too large: `307445734561825861m`"
+    );
+  }
+
+  #[test]
   fn parsing() {
     #[track_caller]
     fn case(text: &str, expected_secs: u64) {
@@ -92,41 +128,5 @@ mod tests {
     case("1d ago", 86400);
     case("1dago", 86400);
     case("  5d ago  ", 432_000);
-  }
-
-  #[test]
-  fn parse_invalid_unit() {
-    assert_eq!(
-      "5x".parse::<Age>().unwrap_err().to_string(),
-      "invalid age unit: `x`"
-    );
-  }
-
-  #[test]
-  fn parse_invalid_amount() {
-    assert_eq!(
-      "abcd".parse::<Age>().unwrap_err().to_string(),
-      "invalid age amount: ``"
-    );
-  }
-
-  #[test]
-  fn parse_overflow() {
-    assert_eq!(
-      "307445734561825861m"
-        .parse::<Age>()
-        .unwrap_err()
-        .to_string(),
-      "age is too large: `307445734561825861m`"
-    );
-  }
-
-  #[test]
-  fn older_than() {
-    let now = SystemTime::now();
-    let age = Age(Duration::from_mins(1));
-
-    assert!(!age.older_than(now));
-    assert!(age.older_than(now - Duration::from_mins(2)));
   }
 }
