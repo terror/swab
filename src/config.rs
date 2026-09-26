@@ -74,55 +74,6 @@ impl Display for ConfigAction {
   }
 }
 
-#[derive(Debug)]
-struct CustomRule {
-  actions: Vec<Action>,
-  detection: Detection,
-  id: String,
-  name: String,
-}
-
-impl TryFrom<RuleConfig> for CustomRule {
-  type Error = Error;
-
-  fn try_from(rule: RuleConfig) -> Result<Self> {
-    ensure!(!rule.id.trim().is_empty(), "rule id cannot be empty");
-
-    ensure!(!rule.actions.is_empty(), "rule actions cannot be empty");
-
-    let actions = rule
-      .actions
-      .into_iter()
-      .map(ConfigAction::try_into)
-      .collect::<Result<Vec<_>>>()?;
-
-    Ok(Self {
-      actions,
-      detection: rule.detection.try_into()?,
-      id: rule.id.clone(),
-      name: rule.name.unwrap_or(rule.id),
-    })
-  }
-}
-
-impl Rule for CustomRule {
-  fn actions(&self) -> &[Action] {
-    &self.actions
-  }
-
-  fn detection(&self) -> Detection {
-    self.detection.clone()
-  }
-
-  fn id(&self) -> &str {
-    self.id.as_str()
-  }
-
-  fn name(&self) -> &str {
-    self.name.as_str()
-  }
-}
-
 #[derive(Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub(crate) struct Config {
@@ -131,18 +82,17 @@ pub(crate) struct Config {
   pub(crate) rules: Vec<RuleConfig>,
 }
 
-impl TryInto<Vec<Box<dyn Rule>>> for Config {
+impl TryFrom<Config> for Vec<Rule> {
   type Error = Error;
 
-  fn try_into(self) -> Result<Vec<Box<dyn Rule>>> {
-    let mut custom_rules = self
+  fn try_from(config: Config) -> Result<Self> {
+    let mut custom_rules = config
       .rules
       .into_iter()
-      .map(|rule| {
-        Ok::<_, Error>((rule.id.clone(), CustomRule::try_from(rule)?))
-      })
+      .map(Rule::try_from)
       .try_fold(HashMap::new(), |mut acc, item| {
-        let (id, rule) = item?;
+        let rule = item?;
+        let id = rule.id.clone();
 
         ensure!(
           acc.insert(id.clone(), rule).is_none(),
@@ -152,47 +102,203 @@ impl TryInto<Vec<Box<dyn Rule>>> for Config {
         Ok(acc)
       })?;
 
-    let disabled = self
+    let disabled = config
       .default_rules
       .disabled
       .into_iter()
       .collect::<HashSet<String>>();
 
-    let mut rules = Self::default_rules()
+    let mut rules = Rule::builtins()?
+      .into_iter()
       .filter_map(|default| {
-        let id = default.id().to_string();
-
-        if let Some(custom) = custom_rules.remove(&id) {
-          return Some(Box::new(custom) as Box<dyn Rule>);
+        if let Some(custom) = custom_rules.remove(&default.id) {
+          return Some(custom);
         }
 
-        if disabled.contains(&id) {
+        if disabled.contains(&default.id) {
           return None;
         }
 
-        Some(Box::new(default) as Box<dyn Rule>)
+        Some(default)
       })
-      .collect::<Vec<Box<dyn Rule>>>();
+      .collect::<Vec<_>>();
 
-    rules.extend(
-      custom_rules
-        .into_values()
-        .map(|rule| Box::new(rule) as Box<dyn Rule>),
-    );
+    rules.extend(custom_rules.into_values());
 
     Ok(rules)
   }
 }
 
 impl Config {
-  pub(crate) fn default_rules()
-  -> impl Iterator<Item = &'static (dyn Rule + Sync)> {
-    inventory::iter::<&'static (dyn Rule + Sync)>
-      .into_iter()
-      .copied()
-  }
-
   pub(crate) fn load() -> Result<Self> {
     Ok(confy::load("swab", "config")?)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn rule(id: &str) -> RuleConfig {
+    RuleConfig {
+      actions: vec![ConfigAction::Remove {
+        remove: "foo".into(),
+      }],
+      detection: ConfigDetection::Pattern("bar".into()),
+      id: id.into(),
+      name: None,
+    }
+  }
+
+  #[test]
+  fn invalid_rules() {
+    #[track_caller]
+    fn case(rules: Vec<RuleConfig>, expected: &str) {
+      assert_eq!(
+        Vec::<Rule>::try_from(Config {
+          rules,
+          ..Config::default()
+        })
+        .unwrap_err()
+        .to_string(),
+        expected,
+      );
+    }
+
+    case(vec![rule(" ")], "rule id cannot be empty");
+
+    case(
+      vec![RuleConfig {
+        actions: Vec::new(),
+        ..rule("foo")
+      }],
+      "rule actions cannot be empty",
+    );
+
+    case(
+      vec![rule("foo"), rule("foo")],
+      "duplicate rule id `foo` in config",
+    );
+
+    case(
+      vec![RuleConfig {
+        detection: ConfigDetection::Pattern(" ".into()),
+        ..rule("foo")
+      }],
+      "detection pattern cannot be empty",
+    );
+
+    case(
+      vec![RuleConfig {
+        detection: ConfigDetection::All { all: Vec::new() },
+        ..rule("foo")
+      }],
+      "`all` detection must contain at least one entry",
+    );
+
+    case(
+      vec![RuleConfig {
+        detection: ConfigDetection::Any { any: Vec::new() },
+        ..rule("foo")
+      }],
+      "`any` detection must contain at least one entry",
+    );
+
+    case(
+      vec![RuleConfig {
+        detection: ConfigDetection::Not {
+          not: Box::new(ConfigDetection::PatternMap {
+            pattern: "[".into(),
+          }),
+        },
+        ..rule("foo")
+      }],
+      concat!(
+        "invalid detection pattern `[`: error parsing glob '[': ",
+        "unclosed character class; missing ']'",
+      ),
+    );
+
+    case(
+      vec![RuleConfig {
+        actions: vec![ConfigAction::Command {
+          command: " ".into(),
+        }],
+        ..rule("foo")
+      }],
+      "command action cannot be empty",
+    );
+
+    case(
+      vec![RuleConfig {
+        actions: vec![ConfigAction::Remove { remove: " ".into() }],
+        ..rule("foo")
+      }],
+      "remove action cannot be empty",
+    );
+
+    case(
+      vec![RuleConfig {
+        actions: vec![ConfigAction::Remove { remove: "[".into() }],
+        ..rule("foo")
+      }],
+      concat!(
+        "invalid remove pattern `[`: error parsing glob '[': ",
+        "unclosed character class; missing ']'",
+      ),
+    );
+  }
+
+  #[test]
+  fn rules() {
+    let mut rules = Vec::<Rule>::try_from(Config {
+      default_rules: DefaultRulesConfig {
+        disabled: Rule::builtins()
+          .unwrap()
+          .into_iter()
+          .map(|rule| rule.id)
+          .filter(|id| id != "cargo")
+          .collect(),
+      },
+      rules: vec![
+        rule("foo"),
+        RuleConfig {
+          actions: vec![ConfigAction::Command {
+            command: "foo".into(),
+          }],
+          name: Some("baz".into()),
+          ..rule("node")
+        },
+      ],
+    })
+    .unwrap();
+
+    rules.sort_by(|a, b| a.id.cmp(&b.id));
+
+    assert_eq!(
+      rules
+        .iter()
+        .map(|rule| (
+          rule.id.as_str(),
+          rule.name.as_str(),
+          rule.detection.to_string(),
+          rule
+            .actions
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+        ))
+        .collect::<Vec<_>>(),
+      vec![
+        (
+          "cargo",
+          "Cargo",
+          "Cargo.toml".into(),
+          vec!["remove **/target".into()]
+        ),
+        ("foo", "foo", "bar".into(), vec!["remove foo".into()]),
+        ("node", "baz", "bar".into(), vec!["run `foo`".into()]),
+      ],
+    );
   }
 }

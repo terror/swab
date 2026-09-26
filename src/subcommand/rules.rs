@@ -7,7 +7,7 @@ enum RuleSource {
   Disabled,
 }
 
-fn print_builtin_rule(style: Style, rule: &dyn Rule, source: RuleSource) {
+fn print_builtin_rule(style: Style, rule: &Rule, source: RuleSource) {
   let status = match source {
     RuleSource::Builtin => style.apply(GREEN, "enabled"),
     RuleSource::Custom => style.apply(YELLOW, "custom"),
@@ -16,21 +16,21 @@ fn print_builtin_rule(style: Style, rule: &dyn Rule, source: RuleSource) {
 
   println!(
     "{} ({}) [{}]",
-    style.apply(BOLD, rule.name()),
-    style.apply(DIM, rule.id()),
+    style.apply(BOLD, &rule.name),
+    style.apply(DIM, &rule.id),
     status,
   );
 
-  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection());
+  println!("  {}: {}", style.apply(CYAN, "detection"), rule.detection);
 
   println!("  {}:", style.apply(CYAN, "actions"));
 
-  for action in rule.actions() {
+  for action in &rule.actions {
     println!("    {action}");
   }
 }
 
-fn print_custom_rule(style: Style, rule: &config::RuleConfig) {
+fn print_custom_rule(style: Style, rule: &RuleConfig) {
   let name = rule.name.as_deref().unwrap_or(&rule.id);
 
   println!(
@@ -67,12 +67,12 @@ pub(crate) fn run() -> Result {
     .map(|rule| rule.id.clone())
     .collect::<HashSet<_>>();
 
-  let mut default_rules = Config::default_rules().collect::<Vec<_>>();
+  let mut default_rules = Rule::builtins()?;
 
-  default_rules.sort_by(|a, b| a.id().cmp(b.id()));
+  default_rules.sort_by(|a, b| a.id.cmp(&b.id));
 
   for rule in &default_rules {
-    let id = rule.id();
+    let id = &rule.id;
 
     let source = if custom_ids.contains(id) {
       RuleSource::Custom
@@ -82,10 +82,13 @@ pub(crate) fn run() -> Result {
       RuleSource::Builtin
     };
 
-    print_builtin_rule(style, *rule, source);
+    print_builtin_rule(style, rule, source);
   }
 
-  let default_ids = default_rules.iter().map(Rule::id).collect::<HashSet<_>>();
+  let default_ids = default_rules
+    .iter()
+    .map(|rule| rule.id.as_str())
+    .collect::<HashSet<_>>();
 
   let mut new_custom_rules = config
     .rules

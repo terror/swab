@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Debug)]
 pub(crate) enum Task {
-  Command(&'static str),
+  Command(String),
   Remove { path: PathBuf, size: u64 },
 }
 
