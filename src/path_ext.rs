@@ -62,93 +62,36 @@ mod tests {
   use {super::*, temptree::temptree};
 
   #[test]
-  fn size_of_file() {
+  fn directories_empty_directory() {
+    let tree = temptree! {};
+
+    let directories = tree.path().directories(false).unwrap();
+
+    assert!(directories.is_empty());
+  }
+
+  #[test]
+  fn directories_excludes_files() {
     let tree = temptree! {
-      "test.txt": "hello"
+      "file1.txt": "content",
+      "file2.txt": "content",
+      "only_dir": {}
     };
 
-    assert_eq!(tree.path().join("test.txt").size(false).unwrap(), 5);
+    let directories = tree.path().directories(false).unwrap();
+
+    assert_eq!(directories.len(), 1);
+
+    assert_eq!(*directories.first().unwrap(), tree.path().join("only_dir"));
   }
 
   #[test]
-  fn size_of_empty_file() {
-    let tree = temptree! {
-      "empty.txt": ""
-    };
-
-    assert_eq!(tree.path().join("empty.txt").size(false).unwrap(), 0);
-  }
-
-  #[test]
-  fn size_of_empty_directory() {
-    assert_eq!(temptree! {}.path().size(false).unwrap(), 0);
-  }
-
-  #[test]
-  fn size_of_directory_with_files() {
-    let tree = temptree! {
-      "a.txt": "aaa",
-      "b.txt": "bbbbb"
-    };
-
-    assert_eq!(tree.path().size(false).unwrap(), 8);
-  }
-
-  #[test]
-  fn size_of_nested_directory() {
-    let tree = temptree! {
-      "root.txt": "root",
-      "subdir": {
-        "nested.txt": "nested"
-      }
-    };
-
-    assert_eq!(tree.path().size(false).unwrap(), 10);
-  }
-
-  #[test]
-  fn size_of_deeply_nested_directory() {
-    let tree = temptree! {
-      "a.txt": "a",
-      "level1": {
-        "b.txt": "bb",
-        "level2": {
-          "c.txt": "ccc"
-        }
-      }
-    };
-
-    assert_eq!(tree.path().size(false).unwrap(), 6);
-  }
-
-  #[test]
-  fn size_of_subdirectory() {
-    let tree = temptree! {
-      "root.txt": "root",
-      "subdir": {
-        "nested.txt": "nested"
-      }
-    };
-
-    assert_eq!(tree.path().join("subdir").size(false).unwrap(), 6);
-  }
-
-  #[test]
-  fn size_of_empty_subdirectory() {
-    let tree = temptree! {
-      "subdir": {}
-    };
-
-    assert_eq!(tree.path().join("subdir").size(false).unwrap(), 0);
-  }
-
-  #[test]
-  fn size_of_nonexistent_path_returns_error() {
+  fn directories_nonexistent_path_returns_error() {
     assert!(
       temptree! {}
         .path()
         .join("does_not_exist")
-        .size(false)
+        .directories(false)
         .is_err()
     );
   }
@@ -175,37 +118,94 @@ mod tests {
   }
 
   #[test]
-  fn directories_excludes_files() {
+  fn size_of_deeply_nested_directory() {
     let tree = temptree! {
-      "file1.txt": "content",
-      "file2.txt": "content",
-      "only_dir": {}
+      "a.txt": "a",
+      "level1": {
+        "b.txt": "bb",
+        "level2": {
+          "c.txt": "ccc"
+        }
+      }
     };
 
-    let directories = tree.path().directories(false).unwrap();
-
-    assert_eq!(directories.len(), 1);
-
-    assert_eq!(*directories.first().unwrap(), tree.path().join("only_dir"));
+    assert_eq!(tree.path().size(false).unwrap(), 6);
   }
 
   #[test]
-  fn directories_empty_directory() {
-    let tree = temptree! {};
+  fn size_of_directory_with_files() {
+    let tree = temptree! {
+      "a.txt": "aaa",
+      "b.txt": "bbbbb"
+    };
 
-    let directories = tree.path().directories(false).unwrap();
-
-    assert!(directories.is_empty());
+    assert_eq!(tree.path().size(false).unwrap(), 8);
   }
 
   #[test]
-  fn directories_nonexistent_path_returns_error() {
+  fn size_of_empty_directory() {
+    assert_eq!(temptree! {}.path().size(false).unwrap(), 0);
+  }
+
+  #[test]
+  fn size_of_empty_file() {
+    let tree = temptree! {
+      "empty.txt": ""
+    };
+
+    assert_eq!(tree.path().join("empty.txt").size(false).unwrap(), 0);
+  }
+
+  #[test]
+  fn size_of_empty_subdirectory() {
+    let tree = temptree! {
+      "subdir": {}
+    };
+
+    assert_eq!(tree.path().join("subdir").size(false).unwrap(), 0);
+  }
+
+  #[test]
+  fn size_of_file() {
+    let tree = temptree! {
+      "test.txt": "hello"
+    };
+
+    assert_eq!(tree.path().join("test.txt").size(false).unwrap(), 5);
+  }
+
+  #[test]
+  fn size_of_nested_directory() {
+    let tree = temptree! {
+      "root.txt": "root",
+      "subdir": {
+        "nested.txt": "nested"
+      }
+    };
+
+    assert_eq!(tree.path().size(false).unwrap(), 10);
+  }
+
+  #[test]
+  fn size_of_nonexistent_path_returns_error() {
     assert!(
       temptree! {}
         .path()
         .join("does_not_exist")
-        .directories(false)
+        .size(false)
         .is_err()
     );
+  }
+
+  #[test]
+  fn size_of_subdirectory() {
+    let tree = temptree! {
+      "root.txt": "root",
+      "subdir": {
+        "nested.txt": "nested"
+      }
+    };
+
+    assert_eq!(tree.path().join("subdir").size(false).unwrap(), 6);
   }
 }

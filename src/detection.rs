@@ -1,11 +1,11 @@
 use super::*;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum Detection {
   All(Vec<Detection>),
   Any(Vec<Detection>),
   Not(Box<Detection>),
-  Pattern(&'static str),
+  Pattern(GlobMatcher),
 }
 
 impl Display for Detection {
@@ -30,7 +30,7 @@ impl Display for Detection {
           .join(" OR ")
       ),
       Self::Not(inner) => write!(f, "NOT {inner}"),
-      Self::Pattern(pattern) => write!(f, "{pattern}"),
+      Self::Pattern(matcher) => write!(f, "{}", matcher.glob()),
     }
   }
 }
@@ -41,21 +41,7 @@ impl TryFrom<ConfigDetection> for Detection {
   fn try_from(value: ConfigDetection) -> Result<Self> {
     match value {
       ConfigDetection::Pattern(pattern)
-      | ConfigDetection::PatternMap { pattern } => {
-        ensure!(
-          !pattern.trim().is_empty(),
-          "detection pattern cannot be empty"
-        );
-
-        GlobBuilder::new(&pattern)
-          .literal_separator(true)
-          .build()
-          .map_err(|error| {
-            anyhow!("invalid detection pattern `{pattern}`: {error}")
-          })?;
-
-        Ok(Detection::Pattern(Box::leak(pattern.into_boxed_str())))
-      }
+      | ConfigDetection::PatternMap { pattern } => Self::pattern(&pattern),
       ConfigDetection::Any { any } => {
         ensure!(
           !any.is_empty(),
@@ -99,7 +85,75 @@ impl Detection {
         .iter()
         .any(|detection| detection.matches(context)),
       Self::Not(inner) => !inner.matches(context),
-      Self::Pattern(pattern) => context.contains(pattern),
+      Self::Pattern(matcher) => context.contains(matcher),
     }
+  }
+
+  pub(crate) fn pattern(pattern: &str) -> Result<Self> {
+    ensure!(
+      !pattern.trim().is_empty(),
+      "detection pattern cannot be empty"
+    );
+
+    Ok(Self::Pattern(
+      GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map_err(|error| {
+          anyhow!("invalid detection pattern `{pattern}`: {error}")
+        })?
+        .compile_matcher(),
+    ))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn matches() {
+    #[track_caller]
+    fn case(
+      detection: &Detection,
+      directories: &[&str],
+      files: &[&str],
+      expected: bool,
+    ) {
+      assert_eq!(
+        detection.matches(&Context {
+          directories: directories.iter().map(PathBuf::from).collect(),
+          files: files.iter().map(PathBuf::from).collect(),
+          follow_symlinks: false,
+          root: PathBuf::new(),
+        }),
+        expected,
+      );
+    }
+
+    let detection = Detection::try_from(ConfigDetection::All {
+      all: vec![
+        ConfigDetection::Pattern("*.foo".into()),
+        ConfigDetection::Any {
+          any: vec![
+            ConfigDetection::PatternMap {
+              pattern: "bar".into(),
+            },
+            ConfigDetection::Not {
+              not: Box::new(ConfigDetection::Pattern("baz".into())),
+            },
+          ],
+        },
+      ],
+    })
+    .unwrap();
+
+    assert_eq!(detection.to_string(), "(*.foo AND (bar OR NOT baz))");
+
+    case(&detection, &[], &[], false);
+    case(&detection, &[], &["foo.foo"], true);
+    case(&detection, &[], &["foo.foo", "baz"], false);
+    case(&detection, &["bar"], &["foo.foo", "baz"], true);
+    case(&detection, &["bar"], &["bar/foo.foo"], false);
   }
 }

@@ -64,14 +64,14 @@ impl Arguments {
   fn process_context(
     &self,
     context: &Context,
-    rules: &[Box<dyn Rule>],
+    rules: &[Rule],
   ) -> Result<(u64, bool)> {
     let mut seen_removals = HashSet::new();
 
     let reports = rules
       .iter()
-      .filter(|rule| rule.detection().matches(context))
-      .map(|rule| context.report(rule.as_ref()))
+      .filter(|rule| rule.detection.matches(context))
+      .map(|rule| context.report(rule))
       .collect::<Result<Vec<_>>>()?;
 
     let reports = reports
@@ -174,7 +174,7 @@ impl Arguments {
       return subcommand.run();
     }
 
-    let rules: Vec<Box<dyn Rule>> = Config::load()?.try_into()?;
+    let rules = Vec::<Rule>::try_from(Config::load()?)?;
 
     let directories = if self.directories.is_empty() {
       vec![env::current_dir()?]

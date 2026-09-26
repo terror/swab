@@ -9,13 +9,7 @@ pub(crate) struct Context {
 }
 
 impl Context {
-  pub(crate) fn contains(&self, pattern: &str) -> bool {
-    let matcher =
-      match GlobBuilder::new(pattern).literal_separator(true).build() {
-        Ok(glob) => glob.compile_matcher(),
-        Err(_) => return false,
-      };
-
+  pub(crate) fn contains(&self, matcher: &GlobMatcher) -> bool {
     self
       .directories
       .iter()
@@ -23,26 +17,14 @@ impl Context {
       .any(|path| matcher.is_match(path))
   }
 
-  pub(crate) fn matches(&self, rule: &dyn Rule) -> Result<Vec<PathBuf>> {
-    let matchers = rule
-      .actions()
+  pub(crate) fn matches(&self, rule: &Rule) -> Vec<PathBuf> {
+    let matches = rule
+      .actions
       .iter()
       .filter_map(|action| match action {
-        Action::Remove(pattern) => Some(pattern),
+        Action::Remove(matcher) => Some(matcher),
         Action::Command(_) => None,
       })
-      .map(|pattern| {
-        Ok(
-          GlobBuilder::new(pattern)
-            .literal_separator(true)
-            .build()?
-            .compile_matcher(),
-        )
-      })
-      .collect::<Result<Vec<_>>>()?;
-
-    let matches = matchers
-      .into_iter()
       .flat_map(|matcher| {
         self
           .directories
@@ -88,7 +70,7 @@ impl Context {
       pruned.push(relative_path);
     }
 
-    Ok(pruned)
+    pruned
   }
 
   pub(crate) fn modified_time(&self) -> Result<SystemTime> {
@@ -126,16 +108,16 @@ impl Context {
     })
   }
 
-  pub(crate) fn report(&self, rule: &dyn Rule) -> Result<Report> {
+  pub(crate) fn report(&self, rule: &Rule) -> Result<Report> {
     let mut tasks = Vec::new();
 
-    for action in rule.actions() {
+    for action in &rule.actions {
       if let Action::Command(command) = action {
-        tasks.push(Task::Command(command));
+        tasks.push(Task::Command(command.clone()));
       }
     }
 
-    for relative_path in self.matches(rule)? {
+    for relative_path in self.matches(rule) {
       let full_path = self.root.join(&relative_path);
 
       let bytes = full_path.size(self.follow_symlinks)?;
@@ -149,7 +131,7 @@ impl Context {
     Ok(Report {
       modified: self.modified_time()?,
       root: self.root.clone(),
-      rule_name: rule.name().to_string(),
+      rule_name: rule.name.clone(),
       tasks,
     })
   }
@@ -159,41 +141,13 @@ impl Context {
 mod tests {
   use {super::*, temptree::temptree};
 
-  struct TestRule {
-    actions: &'static [Action],
-  }
-
-  impl Rule for TestRule {
-    fn actions(&self) -> &[Action] {
-      self.actions
+  fn rule(actions: Vec<Action>) -> Rule {
+    Rule {
+      actions,
+      detection: Detection::pattern("**").unwrap(),
+      id: "foo".into(),
+      name: "foo".into(),
     }
-
-    fn detection(&self) -> Detection {
-      Detection::Pattern("**")
-    }
-
-    fn id(&self) -> &'static str {
-      "test"
-    }
-
-    fn name(&self) -> &'static str {
-      "test"
-    }
-  }
-
-  #[test]
-  fn matches_returns_empty_when_no_patterns_match() {
-    let tree = temptree! {
-      "README.md": "hello",
-    };
-
-    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
-
-    let rule = TestRule {
-      actions: &[Action::Remove("nope/**")],
-    };
-
-    assert!(context.matches(&rule).unwrap().is_empty());
   }
 
   #[test]
@@ -201,37 +155,19 @@ mod tests {
     let tree = temptree! {
       "b.log": "b",
       "a.log": "a",
+      "foo": {
+        "bar.log": "baz",
+      },
     };
 
     let context = Context::new(tree.path().to_path_buf(), false).unwrap();
 
-    let rule = TestRule {
-      actions: &[Action::Remove("*.log")],
-    };
+    let rule = rule(vec![Action::remove("*.log").unwrap()]);
 
     assert_eq!(
-      context.matches(&rule).unwrap(),
+      context.matches(&rule),
       vec![PathBuf::from("a.log"), PathBuf::from("b.log")],
     );
-  }
-
-  #[test]
-  fn matches_skips_deleted_paths() {
-    let tree = temptree! {
-      "stale.log": "x",
-    };
-
-    let root = tree.path();
-
-    let context = Context::new(root.to_path_buf(), false).unwrap();
-
-    fs::remove_file(root.join("stale.log")).unwrap();
-
-    let rule = TestRule {
-      actions: &[Action::Remove("*.log")],
-    };
-
-    assert!(context.matches(&rule).unwrap().is_empty());
   }
 
   #[test]
@@ -252,24 +188,68 @@ mod tests {
 
     let context = Context::new(tree.path().to_path_buf(), false).unwrap();
 
-    let rule = TestRule {
-      actions: &[
-        Action::Remove("node_modules"),
-        Action::Remove("node_modules/**"),
-        Action::Remove("target"),
-        Action::Remove("target/**"),
-        Action::Remove("*.md"),
-        Action::Command("echo ignored"),
-      ],
-    };
+    let rule = rule(vec![
+      Action::remove("node_modules").unwrap(),
+      Action::remove("node_modules/**").unwrap(),
+      Action::remove("target").unwrap(),
+      Action::remove("target/**").unwrap(),
+      Action::remove("*.md").unwrap(),
+      Action::Command("echo foo".into()),
+    ]);
 
     assert_eq!(
-      context.matches(&rule).unwrap(),
+      context.matches(&rule),
       vec![
         PathBuf::from("README.md"),
         PathBuf::from("node_modules"),
         PathBuf::from("target"),
       ],
     );
+  }
+
+  #[test]
+  fn matches_returns_empty_when_no_patterns_match() {
+    let tree = temptree! {
+      "README.md": "hello",
+    };
+
+    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
+
+    let rule = rule(vec![Action::remove("nope/**").unwrap()]);
+
+    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
+  }
+
+  #[test]
+  fn matches_skips_deleted_paths() {
+    let tree = temptree! {
+      "stale.log": "x",
+    };
+
+    let root = tree.path();
+
+    let context = Context::new(root.to_path_buf(), false).unwrap();
+
+    fs::remove_file(root.join("stale.log")).unwrap();
+
+    let rule = rule(vec![Action::remove("*.log").unwrap()]);
+
+    assert_eq!(context.matches(&rule), Vec::<PathBuf>::new());
+  }
+
+  #[test]
+  fn report_owns_commands() {
+    let tree = temptree! {};
+
+    let context = Context::new(tree.path().to_path_buf(), false).unwrap();
+
+    let report = context
+      .report(&rule(vec![Action::Command("foo".into())]))
+      .unwrap();
+
+    assert!(matches!(
+      report.tasks.as_slice(),
+      [Task::Command(command)] if command == "foo",
+    ));
   }
 }
