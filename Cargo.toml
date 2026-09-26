@@ -47,7 +47,7 @@ wildcard_imports = "allow"
 anyhow = "1.0.102"
 clap = { version = "4.6.1", features = ["derive"] }
 confy = "2.0.0"
-dialoguer = "0.12.0"
+dialoguer = { version = "0.12.0", default-features = false }
 globset = "0.4.18"
 inventory = "0.3.24"
 serde = { version = "1.0.228", features = ["derive"] }
