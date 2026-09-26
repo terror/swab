@@ -8,29 +8,6 @@ pub(crate) struct Rule {
   pub(crate) name: String,
 }
 
-impl TryFrom<RuleConfig> for Rule {
-  type Error = Error;
-
-  fn try_from(rule: RuleConfig) -> Result<Self> {
-    ensure!(!rule.id.trim().is_empty(), "rule id cannot be empty");
-
-    ensure!(!rule.actions.is_empty(), "rule actions cannot be empty");
-
-    let actions = rule
-      .actions
-      .into_iter()
-      .map(ConfigAction::try_into)
-      .collect::<Result<Vec<_>>>()?;
-
-    Ok(Self {
-      actions,
-      detection: rule.detection.try_into()?,
-      id: rule.id.clone(),
-      name: rule.name.unwrap_or(rule.id),
-    })
-  }
-}
-
 impl Rule {
   pub(crate) fn builtins() -> Result<Vec<Self>> {
     Ok(vec![
@@ -352,5 +329,28 @@ impl Rule {
         name: "Zig".into(),
       },
     ])
+  }
+}
+
+impl TryFrom<RuleConfig> for Rule {
+  type Error = Error;
+
+  fn try_from(rule: RuleConfig) -> Result<Self> {
+    ensure!(!rule.id.trim().is_empty(), "rule id cannot be empty");
+
+    ensure!(!rule.actions.is_empty(), "rule actions cannot be empty");
+
+    let actions = rule
+      .actions
+      .into_iter()
+      .map(ConfigAction::try_into)
+      .collect::<Result<Vec<_>>>()?;
+
+    Ok(Self {
+      actions,
+      detection: rule.detection.try_into()?,
+      id: rule.id.clone(),
+      name: rule.name.unwrap_or(rule.id),
+    })
   }
 }

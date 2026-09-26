@@ -8,6 +8,38 @@ pub(crate) enum Detection {
   Pattern(GlobMatcher),
 }
 
+impl Detection {
+  pub(crate) fn matches(&self, context: &Context) -> bool {
+    match self {
+      Self::All(detections) => detections
+        .iter()
+        .all(|detection| detection.matches(context)),
+      Self::Any(detections) => detections
+        .iter()
+        .any(|detection| detection.matches(context)),
+      Self::Not(inner) => !inner.matches(context),
+      Self::Pattern(matcher) => context.contains(matcher),
+    }
+  }
+
+  pub(crate) fn pattern(pattern: &str) -> Result<Self> {
+    ensure!(
+      !pattern.trim().is_empty(),
+      "detection pattern cannot be empty"
+    );
+
+    Ok(Self::Pattern(
+      GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map_err(|error| {
+          anyhow!("invalid detection pattern `{pattern}`: {error}")
+        })?
+        .compile_matcher(),
+    ))
+  }
+}
+
 impl Display for Detection {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
@@ -72,38 +104,6 @@ impl TryFrom<ConfigDetection> for Detection {
         Ok(Detection::Not(Box::new((*not).try_into()?)))
       }
     }
-  }
-}
-
-impl Detection {
-  pub(crate) fn matches(&self, context: &Context) -> bool {
-    match self {
-      Self::All(detections) => detections
-        .iter()
-        .all(|detection| detection.matches(context)),
-      Self::Any(detections) => detections
-        .iter()
-        .any(|detection| detection.matches(context)),
-      Self::Not(inner) => !inner.matches(context),
-      Self::Pattern(matcher) => context.contains(matcher),
-    }
-  }
-
-  pub(crate) fn pattern(pattern: &str) -> Result<Self> {
-    ensure!(
-      !pattern.trim().is_empty(),
-      "detection pattern cannot be empty"
-    );
-
-    Ok(Self::Pattern(
-      GlobBuilder::new(pattern)
-        .literal_separator(true)
-        .build()
-        .map_err(|error| {
-          anyhow!("invalid detection pattern `{pattern}`: {error}")
-        })?
-        .compile_matcher(),
-    ))
   }
 }
 
