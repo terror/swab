@@ -41,7 +41,11 @@ impl FromStr for Age {
       _ => bail!("invalid age unit: `{suffix}`"),
     };
 
-    Ok(Age(Duration::from_secs(amount * seconds)))
+    let seconds = amount
+      .checked_mul(seconds)
+      .ok_or_else(|| anyhow!("age is too large: `{text}`"))?;
+
+    Ok(Age(Duration::from_secs(seconds)))
   }
 }
 
@@ -71,6 +75,8 @@ mod tests {
     case("2w", 1_209_600);
     case("1mo", 2_592_000);
     case("1y", 31_536_000);
+    case("18446744073709551615s", u64::MAX);
+    case("307445734561825860m", 18_446_744_073_709_551_600);
   }
 
   #[test]
@@ -101,6 +107,17 @@ mod tests {
     assert_eq!(
       "abcd".parse::<Age>().unwrap_err().to_string(),
       "invalid age amount: ``"
+    );
+  }
+
+  #[test]
+  fn parse_overflow() {
+    assert_eq!(
+      "307445734561825861m"
+        .parse::<Age>()
+        .unwrap_err()
+        .to_string(),
+      "age is too large: `307445734561825861m`"
     );
   }
 
