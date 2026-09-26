@@ -6,6 +6,22 @@ pub(crate) enum Action {
   Remove(GlobMatcher),
 }
 
+impl Action {
+  pub(crate) fn remove(pattern: &str) -> Result<Self> {
+    ensure!(!pattern.trim().is_empty(), "remove action cannot be empty");
+
+    Ok(Self::Remove(
+      GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map_err(|error| {
+          anyhow!("invalid remove pattern `{pattern}`: {error}")
+        })?
+        .compile_matcher(),
+    ))
+  }
+}
+
 impl Display for Action {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
@@ -26,21 +42,5 @@ impl TryFrom<ConfigAction> for Action {
         Ok(Self::Command(command))
       }
     }
-  }
-}
-
-impl Action {
-  pub(crate) fn remove(pattern: &str) -> Result<Self> {
-    ensure!(!pattern.trim().is_empty(), "remove action cannot be empty");
-
-    Ok(Self::Remove(
-      GlobBuilder::new(pattern)
-        .literal_separator(true)
-        .build()
-        .map_err(|error| {
-          anyhow!("invalid remove pattern `{pattern}`: {error}")
-        })?
-        .compile_matcher(),
-    ))
   }
 }

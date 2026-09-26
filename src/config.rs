@@ -82,6 +82,12 @@ pub(crate) struct Config {
   pub(crate) rules: Vec<RuleConfig>,
 }
 
+impl Config {
+  pub(crate) fn load() -> Result<Self> {
+    Ok(confy::load("swab", "config")?)
+  }
+}
+
 impl TryFrom<Config> for Vec<Rule> {
   type Error = Error;
 
@@ -126,12 +132,6 @@ impl TryFrom<Config> for Vec<Rule> {
     rules.extend(custom_rules.into_values());
 
     Ok(rules)
-  }
-}
-
-impl Config {
-  pub(crate) fn load() -> Result<Self> {
-    Ok(confy::load("swab", "config")?)
   }
 }
 
