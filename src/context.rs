@@ -2,19 +2,14 @@ use super::*;
 
 #[derive(Debug)]
 pub(crate) struct Context {
-  pub(crate) directories: HashSet<PathBuf>,
-  pub(crate) files: HashSet<PathBuf>,
   pub(crate) follow_symlinks: bool,
+  pub(crate) paths: HashSet<PathBuf>,
   pub(crate) root: PathBuf,
 }
 
 impl Context {
   pub(crate) fn contains(&self, matcher: &GlobMatcher) -> bool {
-    self
-      .directories
-      .iter()
-      .chain(self.files.iter())
-      .any(|path| matcher.is_match(path))
+    self.paths.iter().any(|path| matcher.is_match(path))
   }
 
   pub(crate) fn matches(&self, rule: &Rule) -> Vec<PathBuf> {
@@ -27,9 +22,8 @@ impl Context {
       })
       .flat_map(|matcher| {
         self
-          .directories
+          .paths
           .iter()
-          .chain(self.files.iter())
           .filter(move |path| matcher.is_match(path))
           .cloned()
       })
@@ -78,7 +72,7 @@ impl Context {
   }
 
   pub(crate) fn new(root: PathBuf, follow_symlinks: bool) -> Result<Self> {
-    let (mut directories, mut files) = (HashSet::new(), HashSet::new());
+    let mut paths = HashSet::new();
 
     for entry in WalkDir::new(&root).follow_links(follow_symlinks) {
       let entry = entry?;
@@ -93,17 +87,12 @@ impl Context {
         .unwrap_or(entry.path())
         .to_path_buf();
 
-      if entry.file_type().is_dir() {
-        directories.insert(relative);
-      } else {
-        files.insert(relative);
-      }
+      paths.insert(relative);
     }
 
     Ok(Self {
-      directories,
-      files,
       follow_symlinks,
+      paths,
       root,
     })
   }

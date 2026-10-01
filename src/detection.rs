@@ -114,17 +114,11 @@ mod tests {
   #[test]
   fn matches() {
     #[track_caller]
-    fn case(
-      detection: &Detection,
-      directories: &[&str],
-      files: &[&str],
-      expected: bool,
-    ) {
+    fn case(detection: &Detection, paths: &[&str], expected: bool) {
       assert_eq!(
         detection.matches(&Context {
-          directories: directories.iter().map(PathBuf::from).collect(),
-          files: files.iter().map(PathBuf::from).collect(),
           follow_symlinks: false,
+          paths: paths.iter().map(PathBuf::from).collect(),
           root: PathBuf::new(),
         }),
         expected,
@@ -150,10 +144,10 @@ mod tests {
 
     assert_eq!(detection.to_string(), "(*.foo AND (bar OR NOT baz))");
 
-    case(&detection, &[], &[], false);
-    case(&detection, &[], &["foo.foo"], true);
-    case(&detection, &[], &["foo.foo", "baz"], false);
-    case(&detection, &["bar"], &["foo.foo", "baz"], true);
-    case(&detection, &["bar"], &["bar/foo.foo"], false);
+    case(&detection, &[], false);
+    case(&detection, &["foo.foo"], true);
+    case(&detection, &["foo.foo", "baz"], false);
+    case(&detection, &["bar", "foo.foo", "baz"], true);
+    case(&detection, &["bar", "bar/foo.foo"], false);
   }
 }
