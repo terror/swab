@@ -66,6 +66,16 @@ impl<'a> Test<'a> {
     Ok(command)
   }
 
+  fn config(self, config: &'a str) -> Self {
+    let path = if cfg!(windows) {
+      "swab/config/config.toml"
+    } else {
+      "swab/config.toml"
+    };
+
+    self.file(path, config).exists(&[path])
+  }
+
   fn directory(mut self, directory: &str) -> Self {
     self.directory = Some(directory.to_owned());
 
@@ -414,14 +424,10 @@ fn configured_rules() -> Result {
       "
     };
 
-  test
-    .file("swab/config.toml", config)
-    .exists(&["swab/config.toml"])
-    .expected_stdout(&expected)
-    .run()?;
+  test.config(config).expected_stdout(&expected).run()?;
 
   Test::new()?
-    .file("swab/config.toml", config)
+    .config(config)
     .file("project/foo", "")
     .file("project/bar", "foo")
     .file("project/baz", "foo")
@@ -430,7 +436,6 @@ fn configured_rules() -> Result {
     .file("project/node_modules/foo", "bar")
     .file("project/target/foo", "bar")
     .exists(&[
-      "swab/config.toml",
       "project/foo",
       "project/package.json",
       "project/node_modules/foo",
@@ -748,8 +753,7 @@ fn invalid_rules() -> Result {
   fn case(config: &str, expected: &str) -> Result {
     for test in [Test::new()?, Test::new()?.subcommand("rules")] {
       test
-        .file("swab/config.toml", config)
-        .exists(&["swab/config.toml"])
+        .config(config)
         .expected_status(1)
         .expected_stderr(expected)
         .run()?;
