@@ -12,11 +12,13 @@ use {
   globset::{GlobBuilder, GlobMatcher},
   path_ext::PathExt,
   report::Report,
+  resolved_rule::ResolvedRule,
   rule::Rule,
+  rule_status::RuleStatus,
   serde::{Deserialize, Serialize},
   std::{
     backtrace::BacktraceStatus,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     env,
     fmt::{self, Display, Formatter},
     fs,
@@ -42,7 +44,9 @@ mod context;
 mod detection;
 mod path_ext;
 mod report;
+mod resolved_rule;
 mod rule;
+mod rule_status;
 mod style;
 mod subcommand;
 mod system_time_ext;

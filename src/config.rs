@@ -25,53 +25,11 @@ pub(crate) enum ConfigDetection {
   PatternMap { pattern: String },
 }
 
-impl Display for ConfigDetection {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::All { all } => {
-        write!(
-          f,
-          "({})",
-          all
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(" AND ")
-        )
-      }
-      Self::Any { any } => {
-        write!(
-          f,
-          "({})",
-          any
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(" OR ")
-        )
-      }
-      Self::Not { not } => write!(f, "NOT {not}"),
-      Self::Pattern(pattern) | Self::PatternMap { pattern } => {
-        write!(f, "{pattern}")
-      }
-    }
-  }
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub(crate) enum ConfigAction {
   Command { command: String },
   Remove { remove: String },
-}
-
-impl Display for ConfigAction {
-  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::Command { command } => write!(f, "run `{command}`"),
-      Self::Remove { remove } => write!(f, "remove {remove}"),
-    }
-  }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -86,18 +44,15 @@ impl Config {
   pub(crate) fn load() -> Result<Self> {
     Ok(confy::load("swab", "config")?)
   }
-}
 
-impl TryFrom<Config> for Vec<Rule> {
-  type Error = Error;
-
-  fn try_from(config: Config) -> Result<Self> {
-    let mut custom_rules = config
+  pub(crate) fn resolve(self) -> Result<Vec<ResolvedRule>> {
+    let mut custom_rules = self
       .rules
       .into_iter()
       .map(Rule::try_from)
-      .try_fold(HashMap::new(), |mut acc, item| {
+      .try_fold(BTreeMap::new(), |mut acc, item| {
         let rule = item?;
+
         let id = rule.id.clone();
 
         ensure!(
@@ -108,7 +63,7 @@ impl TryFrom<Config> for Vec<Rule> {
         Ok(acc)
       })?;
 
-    let disabled = config
+    let disabled = self
       .default_rules
       .disabled
       .into_iter()
@@ -116,20 +71,26 @@ impl TryFrom<Config> for Vec<Rule> {
 
     let mut rules = Rule::builtins()?
       .into_iter()
-      .filter_map(|default| {
-        if let Some(custom) = custom_rules.remove(&default.id) {
-          return Some(custom);
-        }
+      .map(|rule| {
+        let (rule, status) = if let Some(custom) = custom_rules.remove(&rule.id)
+        {
+          (custom, RuleStatus::Custom)
+        } else if disabled.contains(&rule.id) {
+          (rule, RuleStatus::Disabled)
+        } else {
+          (rule, RuleStatus::Enabled)
+        };
 
-        if disabled.contains(&default.id) {
-          return None;
-        }
-
-        Some(default)
+        ResolvedRule { rule, status }
       })
       .collect::<Vec<_>>();
 
-    rules.extend(custom_rules.into_values());
+    rules.sort_by(|a, b| a.rule.id.cmp(&b.rule.id));
+
+    rules.extend(custom_rules.into_values().map(|rule| ResolvedRule {
+      rule,
+      status: RuleStatus::Custom,
+    }));
 
     Ok(rules)
   }
@@ -155,10 +116,11 @@ mod tests {
     #[track_caller]
     fn case(rules: Vec<RuleConfig>, expected: &str) {
       assert_eq!(
-        Vec::<Rule>::try_from(Config {
+        Config {
           rules,
           ..Config::default()
-        })
+        }
+        .resolve()
         .unwrap_err()
         .to_string(),
         expected,
@@ -251,34 +213,49 @@ mod tests {
 
   #[test]
   fn rules() {
-    let mut rules = Vec::<Rule>::try_from(Config {
+    let disabled = Rule::builtins()
+      .unwrap()
+      .into_iter()
+      .map(|rule| rule.id)
+      .filter(|id| id != "node")
+      .collect::<Vec<_>>();
+
+    let rules = Config {
       default_rules: DefaultRulesConfig {
-        disabled: Rule::builtins()
-          .unwrap()
-          .into_iter()
-          .map(|rule| rule.id)
-          .filter(|id| id != "cargo")
-          .collect(),
+        disabled: disabled.clone(),
       },
       rules: vec![
         rule("foo"),
+        rule("bar"),
         RuleConfig {
           actions: vec![ConfigAction::Command {
             command: "foo".into(),
           }],
           name: Some("baz".into()),
-          ..rule("node")
+          ..rule("cargo")
         },
       ],
-    })
+    }
+    .resolve()
     .unwrap();
-
-    rules.sort_by(|a, b| a.id.cmp(&b.id));
 
     assert_eq!(
       rules
         .iter()
-        .map(|rule| (
+        .filter(|rule| rule.status == RuleStatus::Disabled)
+        .map(|rule| &rule.rule.id)
+        .collect::<Vec<_>>(),
+      disabled
+        .iter()
+        .filter(|id| *id != "cargo")
+        .collect::<Vec<_>>(),
+    );
+
+    assert_eq!(
+      rules
+        .iter()
+        .filter(|rule| rule.status != RuleStatus::Disabled)
+        .map(|ResolvedRule { rule, status }| (
           rule.id.as_str(),
           rule.name.as_str(),
           rule.detection.to_string(),
@@ -286,18 +263,42 @@ mod tests {
             .actions
             .iter()
             .map(ToString::to_string)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+          *status,
         ))
         .collect::<Vec<_>>(),
       vec![
         (
           "cargo",
-          "Cargo",
-          "Cargo.toml".into(),
-          vec!["remove **/target".into()]
+          "baz",
+          "bar".into(),
+          vec!["run `foo`".into()],
+          RuleStatus::Custom,
         ),
-        ("foo", "foo", "bar".into(), vec!["remove foo".into()]),
-        ("node", "baz", "bar".into(), vec!["run `foo`".into()]),
+        (
+          "node",
+          "Node",
+          "package.json".into(),
+          vec![
+            "remove **/node_modules".into(),
+            "remove .angular/cache".into()
+          ],
+          RuleStatus::Enabled,
+        ),
+        (
+          "bar",
+          "bar",
+          "bar".into(),
+          vec!["remove foo".into()],
+          RuleStatus::Custom,
+        ),
+        (
+          "foo",
+          "foo",
+          "bar".into(),
+          vec!["remove foo".into()],
+          RuleStatus::Custom,
+        ),
       ],
     );
   }
