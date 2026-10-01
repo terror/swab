@@ -24,6 +24,7 @@ struct Test<'a> {
   expected_stderr: String,
   expected_stdout: String,
   files: Vec<(&'a str, &'a str)>,
+  subcommand: Option<String>,
   tempdir: TempDir,
 }
 
@@ -52,7 +53,9 @@ impl<'a> Test<'a> {
       .env("XDG_CONFIG_HOME", self.tempdir.path())
       .current_dir(&self.tempdir);
 
-    if let Some(dir) = &self.directory {
+    if let Some(subcommand) = &self.subcommand {
+      command.arg(subcommand);
+    } else if let Some(dir) = &self.directory {
       command.arg(self.tempdir.path().join(dir));
     } else {
       command.arg(self.tempdir.path());
@@ -61,6 +64,16 @@ impl<'a> Test<'a> {
     command.args(&self.arguments);
 
     Ok(command)
+  }
+
+  fn config(self, config: &'a str) -> Self {
+    let path = if cfg!(windows) {
+      "swab/config/config.toml"
+    } else {
+      "swab/config.toml"
+    };
+
+    self.file(path, config).exists(&[path])
   }
 
   fn directory(mut self, directory: &str) -> Self {
@@ -109,6 +122,7 @@ impl<'a> Test<'a> {
       expected_stderr: String::new(),
       expected_stdout: String::new(),
       files: Vec::new(),
+      subcommand: None,
       tempdir: TempDir::with_prefix("swab-test")?,
     })
   }
@@ -184,6 +198,12 @@ impl<'a> Test<'a> {
       });
 
     Ok(())
+  }
+
+  fn subcommand(mut self, subcommand: &str) -> Self {
+    self.subcommand = Some(subcommand.to_owned());
+
+    self
   }
 }
 
@@ -335,6 +355,101 @@ fn composer_removes_vendor() -> Result {
       [ROOT]/project Composer (PHP) project (0 seconds ago)
         └─ vendor (1.46 KiB)
       Projects cleaned: 1, Bytes deleted: 1.46 KiB
+      "
+    })
+    .run()
+}
+
+#[test]
+fn configured_rules() -> Result {
+  let config = indoc! {
+    r#"
+    [default_rules]
+    disabled = ["cargo", "node"]
+
+    [[rules]]
+    id = "foo"
+    detection = { all = ["foo", { any = ["bar", { not = { pattern = "baz" } }] }] }
+    actions = [{ remove = "qux" }]
+
+    [[rules]]
+    id = "cargo"
+    name = "baz"
+    detection = { pattern = "foo" }
+    actions = [{ remove = "bar" }]
+
+    [[rules]]
+    id = "bar"
+    detection = "foo"
+    actions = [{ remove = "baz" }]
+    "#
+  };
+
+  let test = Test::new()?.subcommand("rules");
+  let output = test.command()?.output()?;
+
+  assert_eq!(str::from_utf8(&output.stderr)?, "");
+  assert_eq!(output.status.code(), Some(0));
+
+  let expected = str::from_utf8(&output.stdout)?
+    .replace(
+      indoc! {
+        "
+        Cargo (cargo) [enabled]
+          detection: Cargo.toml
+          actions:
+            remove **/target
+        "
+      },
+      indoc! {
+        "
+        baz (cargo) [custom]
+          detection: foo
+          actions:
+            remove bar
+        "
+      },
+    )
+    .replace("Node (node) [enabled]", "Node (node) [disabled]")
+    + indoc! {
+      "
+      bar (bar) [custom]
+        detection: foo
+        actions:
+          remove baz
+      foo (foo) [custom]
+        detection: (foo AND (bar OR NOT baz))
+        actions:
+          remove qux
+      "
+    };
+
+  test.config(config).expected_stdout(&expected).run()?;
+
+  Test::new()?
+    .config(config)
+    .file("project/foo", "")
+    .file("project/bar", "foo")
+    .file("project/baz", "foo")
+    .file("project/qux", "foo")
+    .file("project/package.json", "")
+    .file("project/node_modules/foo", "bar")
+    .file("project/target/foo", "bar")
+    .exists(&[
+      "project/foo",
+      "project/package.json",
+      "project/node_modules/foo",
+      "project/target/foo",
+    ])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project baz project (0 seconds ago)
+        └─ bar (3 bytes)
+      [ROOT]/project bar project (0 seconds ago)
+        └─ baz (3 bytes)
+      [ROOT]/project foo project (0 seconds ago)
+        └─ qux (3 bytes)
+      Projects cleaned: 1, Bytes deleted: 9 bytes
       "
     })
     .run()
@@ -630,6 +745,68 @@ fn invalid_path_error() -> Result {
       "error: the path `[ROOT]/nonexistent` is not a valid directory\n",
     )
     .run()
+}
+
+#[test]
+fn invalid_rules() -> Result {
+  #[track_caller]
+  fn case(config: &str, expected: &str) -> Result {
+    for test in [Test::new()?, Test::new()?.subcommand("rules")] {
+      test
+        .config(config)
+        .expected_status(1)
+        .expected_stderr(expected)
+        .run()?;
+    }
+
+    Ok(())
+  }
+
+  case(
+    indoc! {
+      r#"
+      [[rules]]
+      id = "foo"
+      detection = "bar"
+      "#
+    },
+    "error: rule actions cannot be empty\n",
+  )?;
+
+  case(
+    indoc! {
+      r#"
+      [[rules]]
+      id = "foo"
+      detection = "bar"
+      actions = [{ remove = "baz" }]
+
+      [[rules]]
+      id = "foo"
+      detection = "bar"
+      actions = [{ remove = "baz" }]
+      "#
+    },
+    "error: duplicate rule id `foo` in config\n",
+  )?;
+
+  case(
+    indoc! {
+      r#"
+      [default_rules]
+      disabled = ["cargo"]
+
+      [[rules]]
+      id = "cargo"
+      detection = "["
+      actions = [{ remove = "foo" }]
+      "#
+    },
+    concat!(
+      "error: invalid detection pattern `[`: error parsing glob '[': ",
+      "unclosed character class; missing ']'\n",
+    ),
+  )
 }
 
 #[test]

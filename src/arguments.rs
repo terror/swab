@@ -174,7 +174,12 @@ impl Arguments {
       return subcommand.run();
     }
 
-    let rules = Vec::<Rule>::try_from(Config::load()?)?;
+    let rules = Config::load()?
+      .resolve()?
+      .into_iter()
+      .filter(|rule| rule.status != RuleStatus::Disabled)
+      .map(|rule| rule.rule)
+      .collect::<Vec<_>>();
 
     let directories = if self.directories.is_empty() {
       vec![env::current_dir()?]
