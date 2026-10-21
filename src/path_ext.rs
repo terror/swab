@@ -67,7 +67,7 @@ mod tests {
 
     let directories = tree.path().directories(false).unwrap();
 
-    assert!(directories.is_empty());
+    assert_eq!(directories, Vec::<PathBuf>::new());
   }
 
   #[test]
