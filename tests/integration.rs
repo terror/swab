@@ -1,6 +1,5 @@
 use {
   anyhow::Error,
-  filetime::{self, FileTime},
   indoc::indoc,
   pretty_assertions::assert_eq,
   std::{
@@ -139,19 +138,19 @@ impl<'a> Test<'a> {
     }
 
     if let Some(age) = self.age {
-      let mtime = FileTime::from_system_time(SystemTime::now() - age);
+      let times = fs::FileTimes::new().set_modified(SystemTime::now() - age);
 
       for (path, _) in &self.files {
         let full_path = self.tempdir.path().join(path);
 
-        filetime::set_file_mtime(&full_path, mtime)?;
+        fs::set_times(&full_path, times)?;
 
         if let Some(parent) = full_path.parent() {
-          filetime::set_file_mtime(parent, mtime)?;
+          fs::set_times(parent, times)?;
         }
       }
 
-      filetime::set_file_mtime(self.tempdir.path(), mtime)?;
+      fs::set_times(self.tempdir.path(), times)?;
     }
 
     let output = self.command()?.output()?;
