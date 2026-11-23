@@ -25,6 +25,7 @@ struct Test<'a> {
   files: Vec<(&'a str, &'a str)>,
   subcommand: Option<String>,
   tempdir: TempDir,
+  touched: Vec<&'a str>,
 }
 
 impl<'a> Test<'a> {
@@ -123,6 +124,7 @@ impl<'a> Test<'a> {
       files: Vec::new(),
       subcommand: None,
       tempdir: TempDir::with_prefix("swab-test")?,
+      touched: Vec::new(),
     })
   }
 
@@ -151,6 +153,13 @@ impl<'a> Test<'a> {
       }
 
       fs::set_times(self.tempdir.path(), times)?;
+    }
+
+    for path in &self.touched {
+      fs::set_times(
+        self.tempdir.path().join(path),
+        fs::FileTimes::new().set_modified(SystemTime::now()),
+      )?;
     }
 
     let output = self.command()?.output()?;
@@ -201,6 +210,12 @@ impl<'a> Test<'a> {
 
   fn subcommand(mut self, subcommand: &str) -> Self {
     self.subcommand = Some(subcommand.to_owned());
+
+    self
+  }
+
+  fn touch(mut self, path: &'a str) -> Self {
+    self.touched.push(path);
 
     self
   }
@@ -1049,6 +1064,26 @@ fn older_than_filters_recent_projects() -> Result {
 }
 
 #[test]
+fn older_than_ignores_recent_artifacts() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .age(Duration::from_hours(720))
+    .file("project/Cargo.toml", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .touch("project/target/debug/app")
+    .exists(&["project/Cargo.toml"])
+    .expected_stdout(indoc! {
+      "
+      [ROOT]/project Cargo project (30 days ago)
+        └─ target (1000 bytes)
+      Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
 fn older_than_includes_old_projects() -> Result {
   Test::new()?
     .argument("--older-than")
@@ -1062,6 +1097,29 @@ fn older_than_includes_old_projects() -> Result {
       [ROOT]/project Cargo project (30 days ago)
         └─ target (1000 bytes)
       Projects cleaned: 1, Bytes deleted: 1000 bytes
+      "
+    })
+    .run()
+}
+
+#[test]
+fn older_than_uses_newest_project_file() -> Result {
+  Test::new()?
+    .argument("--older-than")
+    .argument("7d")
+    .age(Duration::from_hours(720))
+    .file("project/Cargo.toml", "")
+    .file("project/src/foo/bar.rs", "")
+    .file("project/target/debug/app", &"a".repeat(1000))
+    .touch("project/src/foo/bar.rs")
+    .exists(&[
+      "project/Cargo.toml",
+      "project/src/foo/bar.rs",
+      "project/target/debug/app",
+    ])
+    .expected_stdout(indoc! {
+      "
+      Projects cleaned: 0, Bytes deleted: 0 bytes
       "
     })
     .run()

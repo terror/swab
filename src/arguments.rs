@@ -68,15 +68,14 @@ impl Arguments {
   ) -> Result<(u64, bool)> {
     let mut seen_removals = HashSet::new();
 
-    let reports = rules
-      .iter()
-      .filter(|rule| rule.detection.matches(context))
-      .map(|rule| context.report(rule))
-      .collect::<Result<Vec<_>>>()?;
-
-    let reports = reports
+    let reports = context
+      .reports(rules)?
       .into_iter()
-      .filter(|report| !report.tasks.is_empty())
+      .filter(|report| {
+        self
+          .older_than
+          .is_none_or(|age| age.older_than(report.modified))
+      })
       .collect::<Vec<Report>>();
 
     let has_matches = !reports.is_empty();
@@ -208,15 +207,6 @@ impl Arguments {
 
     let contexts = directories
       .into_iter()
-      .filter(|directory| {
-        let Some(age) = &self.older_than else {
-          return true;
-        };
-
-        fs::metadata(directory)
-          .and_then(|metadata| metadata.modified())
-          .is_ok_and(|modified| age.older_than(modified))
-      })
       .map(|directory| Context::new(directory, self.follow_symlinks))
       .collect::<Result<Vec<_>>>()?;
 
