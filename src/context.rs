@@ -45,15 +45,7 @@ impl Context {
 
       containing_directory = None;
 
-      let full_path = self.root.join(&relative_path);
-
-      let metadata = if self.follow_symlinks {
-        fs::metadata(&full_path)
-      } else {
-        fs::symlink_metadata(&full_path)
-      };
-
-      let Ok(metadata) = metadata else {
+      let Ok(metadata) = self.metadata(&relative_path) else {
         continue;
       };
 
@@ -67,8 +59,35 @@ impl Context {
     pruned
   }
 
-  pub(crate) fn modified_time(&self) -> Result<SystemTime> {
-    Ok(fs::metadata(&self.root)?.modified()?)
+  fn metadata(&self, relative: &Path) -> io::Result<fs::Metadata> {
+    let path = self.root.join(relative);
+
+    if self.follow_symlinks {
+      fs::metadata(path)
+    } else {
+      fs::symlink_metadata(path)
+    }
+  }
+
+  fn modified(&self, excluded: &[&Path]) -> Result<SystemTime> {
+    let modified = self
+      .paths
+      .iter()
+      .filter(|path| {
+        !excluded.iter().any(|excluded| path.starts_with(excluded))
+      })
+      .filter_map(|path| {
+        self
+          .metadata(path)
+          .and_then(|metadata| metadata.modified())
+          .ok()
+      })
+      .max();
+
+    match modified {
+      Some(modified) => Ok(modified),
+      None => Ok(fs::metadata(&self.root)?.modified()?),
+    }
   }
 
   pub(crate) fn new(root: PathBuf, follow_symlinks: bool) -> Result<Self> {
@@ -97,7 +116,45 @@ impl Context {
     })
   }
 
-  pub(crate) fn report(&self, rule: &Rule) -> Result<Report> {
+  pub(crate) fn reports(&self, rules: &[Rule]) -> Result<Vec<Report>> {
+    let tasks = rules
+      .iter()
+      .filter(|rule| rule.detection.matches(self))
+      .map(|rule| Ok((rule, self.tasks(rule)?)))
+      .collect::<Result<Vec<_>>>()?
+      .into_iter()
+      .filter(|(_, tasks)| !tasks.is_empty())
+      .collect::<Vec<_>>();
+
+    if tasks.is_empty() {
+      return Ok(Vec::new());
+    }
+
+    let excluded = tasks
+      .iter()
+      .flat_map(|(_, tasks)| tasks)
+      .filter_map(|task| match task {
+        Task::Remove { path, .. } => Some(path.as_path()),
+        Task::Command(_) => None,
+      })
+      .collect::<Vec<_>>();
+
+    let modified = self.modified(&excluded)?;
+
+    Ok(
+      tasks
+        .into_iter()
+        .map(|(rule, tasks)| Report {
+          modified,
+          root: self.root.clone(),
+          rule_name: rule.name.clone(),
+          tasks,
+        })
+        .collect(),
+    )
+  }
+
+  fn tasks(&self, rule: &Rule) -> Result<Vec<Task>> {
     let mut tasks = Vec::new();
 
     for action in &rule.actions {
@@ -117,12 +174,7 @@ impl Context {
       });
     }
 
-    Ok(Report {
-      modified: self.modified_time()?,
-      root: self.root.clone(),
-      rule_name: rule.name.clone(),
-      tasks,
-    })
+    Ok(tasks)
   }
 }
 
@@ -228,17 +280,22 @@ mod tests {
 
   #[test]
   fn report_owns_commands() {
-    let tree = temptree! {};
+    let tree = temptree! {
+      "foo": "",
+    };
 
     let context = Context::new(tree.path().to_path_buf(), false).unwrap();
 
-    let report = context
-      .report(&rule(vec![Action::Command("foo".into())]))
+    let reports = context
+      .reports(&[rule(vec![Action::Command("foo".into())])])
       .unwrap();
 
     assert!(matches!(
-      report.tasks.as_slice(),
-      [Task::Command(command)] if command == "foo",
+      reports.as_slice(),
+      [Report { tasks, .. }] if matches!(
+        tasks.as_slice(),
+        [Task::Command(command)] if command == "foo",
+      ),
     ));
   }
 }
